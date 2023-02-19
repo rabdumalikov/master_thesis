@@ -5,21 +5,6 @@ import numpy as np
 def is_undersensitivity_attack( score1, score2 ):
     return score2['score'] > score1['score'] and score2['answer'] == score1['answer']
 
-# def ne_pertubation(question, ne_collection, ner):
-#     doc = ner( question )
-#     res = [(X.text, X.label_) for X in doc.ents]
-
-#     if not res:
-#         return '' 
-
-#     idx = random.randint(0, len(res) - 1)
-
-#     text, label = res[idx]
-
-#     substitution = random.choice(ne_collection[label])
-
-#     return question.replace( text, substitution )
-
 def ne_pertubation( question, ne_collection, ner, is_attack_question, beam_size=1, n=1 ):
 
     doc = ner(question)
@@ -71,7 +56,7 @@ def ne_pertubation( question, ne_collection, ner, is_attack_question, beam_size=
             else:
                 break
 
-    return None
+    return ''
 
 
 excluded_POS_tags = ['IN', 'DT', '.', 'VBD', 'VBZ', 'WP', 'WRB', 'WDT', 'CC', 'MD', 'TO', ')', '(', ',', '$', "''", ':', '#', '``']
@@ -79,20 +64,7 @@ excluded_POS_tags = ['IN', 'DT', '.', 'VBD', 'VBZ', 'WP', 'WRB', 'WDT', 'CC', 'M
 def pos_pertubation( question, pos_collection, is_attack_question, beam_size=1, n=1 ):
 
     question_chunks = question.split()
-
-    # while True:
-    #     idx = random.randint(0, len(question_chunks) - 1)
-    #     token = nltk.word_tokenize( question_chunks[idx] )
-    #     tag = nltk.pos_tag(token)[0]
-    #     if tag[1] not in excluded_POS_tags:
-    #         break
-
-    # substitute = random.choice(pos_collection[tag[1]])
-
-    # question_chunks[idx] = ''.join(substitute)
     
-    # return ' '.join(question_chunks)
-
     while True:
         idxs = [ random.randint(0, len(question_chunks) - 1) for i in range(beam_size) ]
         tokens = [ nltk.word_tokenize( question_chunks[idx] ) for idx in idxs ]    
@@ -135,5 +107,5 @@ def pos_pertubation( question, pos_collection, is_attack_question, beam_size=1, 
             else:
                 break
 
-    return None
+    return ''
 
