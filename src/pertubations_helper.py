@@ -1,6 +1,7 @@
 import random
 import nltk
 import numpy as np
+from tqdm import tqdm
 
 def is_undersensitivity_attack( score1, score2 ):
     return score2['score'] > score1['score'] and score2['answer'] == score1['answer']
@@ -92,7 +93,7 @@ def pos_pertubation( question, pos_collection, is_attack_question, beam_size=1, 
     subs = np.asarray(subs)
     indexes = [0] * beam_size
 
-    for _ in range(n**beam_size):
+    for _ in tqdm(range(n**beam_size)):
         new_question = substitute( idxs, indexes, subs, question_chunks )
 
         is_attack = is_attack_question(new_question)
