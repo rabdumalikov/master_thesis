@@ -1,0 +1,220 @@
+Started...
+Found cached dataset glue (/gpfs/space/home/abdumali/.cache/huggingface/datasets/glue/mrpc/1.0.0/dacbe3125aa31d7f70367a07a8a9e72a5a0bfeb5fc42e75c9db75b96da6053ad)
+  0%|          | 0/3 [00:00<?, ?it/s]100%|██████████| 3/3 [00:00<00:00, 965.91it/s]
+Found cached dataset glue (/gpfs/space/home/abdumali/.cache/huggingface/datasets/glue/mrpc/1.0.0/dacbe3125aa31d7f70367a07a8a9e72a5a0bfeb5fc42e75c9db75b96da6053ad)
+  0%|          | 0/3 [00:00<?, ?it/s]100%|██████████| 3/3 [00:00<00:00, 793.32it/s]
+Loading cached processed dataset at /gpfs/space/home/abdumali/.cache/huggingface/datasets/glue/mrpc/1.0.0/dacbe3125aa31d7f70367a07a8a9e72a5a0bfeb5fc42e75c9db75b96da6053ad/cache-c18820af77f30db3.arrow
+Loading cached processed dataset at /gpfs/space/home/abdumali/.cache/huggingface/datasets/glue/mrpc/1.0.0/dacbe3125aa31d7f70367a07a8a9e72a5a0bfeb5fc42e75c9db75b96da6053ad/cache-0aaebfc120fc72db.arrow
+Loading cached processed dataset at /gpfs/space/home/abdumali/.cache/huggingface/datasets/glue/mrpc/1.0.0/dacbe3125aa31d7f70367a07a8a9e72a5a0bfeb5fc42e75c9db75b96da6053ad/cache-c61ae022d82ba136.arrow
+Loading cached processed dataset at /gpfs/space/home/abdumali/.cache/huggingface/datasets/glue/mrpc/1.0.0/dacbe3125aa31d7f70367a07a8a9e72a5a0bfeb5fc42e75c9db75b96da6053ad/cache-c18820af77f30db3.arrow
+Loading cached processed dataset at /gpfs/space/home/abdumali/.cache/huggingface/datasets/glue/mrpc/1.0.0/dacbe3125aa31d7f70367a07a8a9e72a5a0bfeb5fc42e75c9db75b96da6053ad/cache-0aaebfc120fc72db.arrow
+Loading cached processed dataset at /gpfs/space/home/abdumali/.cache/huggingface/datasets/glue/mrpc/1.0.0/dacbe3125aa31d7f70367a07a8a9e72a5a0bfeb5fc42e75c9db75b96da6053ad/cache-c61ae022d82ba136.arrow
+Some weights of the model checkpoint at bert-base-cased were not used when initializing BertForSequenceClassification: ['cls.predictions.transform.dense.bias', 'cls.predictions.decoder.weight', 'cls.seq_relationship.bias', 'cls.predictions.transform.dense.weight', 'cls.predictions.transform.LayerNorm.weight', 'cls.predictions.transform.LayerNorm.bias', 'cls.predictions.bias', 'cls.seq_relationship.weight']
+- This IS expected if you are initializing BertForSequenceClassification from the checkpoint of a model trained on another task or with another architecture (e.g. initializing a BertForSequenceClassification model from a BertForPreTraining model).
+- This IS NOT expected if you are initializing BertForSequenceClassification from the checkpoint of a model that you expect to be exactly identical (initializing a BertForSequenceClassification model from a BertForSequenceClassification model).
+Some weights of BertForSequenceClassification were not initialized from the model checkpoint at bert-base-cased and are newly initialized: ['classifier.bias', 'classifier.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+Some weights of the model checkpoint at bert-base-cased were not used when initializing BertForSequenceClassification: ['cls.predictions.decoder.weight', 'cls.seq_relationship.bias', 'cls.predictions.bias', 'cls.predictions.transform.dense.bias', 'cls.predictions.transform.dense.weight', 'cls.predictions.transform.LayerNorm.bias', 'cls.seq_relationship.weight', 'cls.predictions.transform.LayerNorm.weight']
+- This IS expected if you are initializing BertForSequenceClassification from the checkpoint of a model trained on another task or with another architecture (e.g. initializing a BertForSequenceClassification model from a BertForPreTraining model).
+- This IS NOT expected if you are initializing BertForSequenceClassification from the checkpoint of a model that you expect to be exactly identical (initializing a BertForSequenceClassification model from a BertForSequenceClassification model).
+Some weights of BertForSequenceClassification were not initialized from the model checkpoint at bert-base-cased and are newly initialized: ['classifier.bias', 'classifier.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+len(examples)=512
+len(examples)=512
+len(examples)=512
+len(examples)=512
+len(examples)=512len(examples)=512
+
+len(examples)=512len(examples)=512
+
+len(examples)=1024
+len(examples)=1024
+epoch 0: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+len(examples)=512
+len(examples)=512
+len(examples)=512
+len(examples)=512
+len(examples)=512
+len(examples)=512
+len(examples)=512
+len(examples)=512
+len(examples)=1024
+len(examples)=1024
+epoch 1: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+len(examples)=512
+len(examples)=512
+len(examples)=512
+len(examples)=512
+len(examples)=512
+len(examples)=512
+len(examples)=512
+len(examples)=512
+len(examples)=1024
+len(examples)=1024
+epoch 2: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+len(examples)=512
+len(examples)=512
+len(examples)=512
+len(examples)=512
+len(examples)=512
+len(examples)=512
+len(examples)=512
+len(examples)=512
+slurmstepd: error: *** JOB 39419493 ON pegasus2 CANCELLED AT 2023-02-21T13:11:11 ***
+Started...
+Found cached dataset glue (/gpfs/space/home/abdumali/.cache/huggingface/datasets/glue/mrpc/1.0.0/dacbe3125aa31d7f70367a07a8a9e72a5a0bfeb5fc42e75c9db75b96da6053ad)
+  0%|          | 0/3 [00:00<?, ?it/s]100%|██████████| 3/3 [00:00<00:00, 653.45it/s]
+Found cached dataset glue (/gpfs/space/home/abdumali/.cache/huggingface/datasets/glue/mrpc/1.0.0/dacbe3125aa31d7f70367a07a8a9e72a5a0bfeb5fc42e75c9db75b96da6053ad)
+  0%|          | 0/3 [00:00<?, ?it/s]100%|██████████| 3/3 [00:00<00:00, 637.27it/s]
+Loading cached processed dataset at /gpfs/space/home/abdumali/.cache/huggingface/datasets/glue/mrpc/1.0.0/dacbe3125aa31d7f70367a07a8a9e72a5a0bfeb5fc42e75c9db75b96da6053ad/cache-c18820af77f30db3.arrow
+Loading cached processed dataset at /gpfs/space/home/abdumali/.cache/huggingface/datasets/glue/mrpc/1.0.0/dacbe3125aa31d7f70367a07a8a9e72a5a0bfeb5fc42e75c9db75b96da6053ad/cache-0aaebfc120fc72db.arrow
+Loading cached processed dataset at /gpfs/space/home/abdumali/.cache/huggingface/datasets/glue/mrpc/1.0.0/dacbe3125aa31d7f70367a07a8a9e72a5a0bfeb5fc42e75c9db75b96da6053ad/cache-c61ae022d82ba136.arrow
+Loading cached processed dataset at /gpfs/space/home/abdumali/.cache/huggingface/datasets/glue/mrpc/1.0.0/dacbe3125aa31d7f70367a07a8a9e72a5a0bfeb5fc42e75c9db75b96da6053ad/cache-c18820af77f30db3.arrow
+Loading cached processed dataset at /gpfs/space/home/abdumali/.cache/huggingface/datasets/glue/mrpc/1.0.0/dacbe3125aa31d7f70367a07a8a9e72a5a0bfeb5fc42e75c9db75b96da6053ad/cache-0aaebfc120fc72db.arrow
+Loading cached processed dataset at /gpfs/space/home/abdumali/.cache/huggingface/datasets/glue/mrpc/1.0.0/dacbe3125aa31d7f70367a07a8a9e72a5a0bfeb5fc42e75c9db75b96da6053ad/cache-c61ae022d82ba136.arrow
+Some weights of the model checkpoint at bert-base-cased were not used when initializing BertForSequenceClassification: ['cls.predictions.transform.LayerNorm.bias', 'cls.predictions.transform.dense.bias', 'cls.predictions.transform.LayerNorm.weight', 'cls.predictions.transform.dense.weight', 'cls.seq_relationship.bias', 'cls.predictions.bias', 'cls.seq_relationship.weight', 'cls.predictions.decoder.weight']
+- This IS expected if you are initializing BertForSequenceClassification from the checkpoint of a model trained on another task or with another architecture (e.g. initializing a BertForSequenceClassification model from a BertForPreTraining model).
+- This IS NOT expected if you are initializing BertForSequenceClassification from the checkpoint of a model that you expect to be exactly identical (initializing a BertForSequenceClassification model from a BertForSequenceClassification model).
+Some weights of BertForSequenceClassification were not initialized from the model checkpoint at bert-base-cased and are newly initialized: ['classifier.bias', 'classifier.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+Some weights of the model checkpoint at bert-base-cased were not used when initializing BertForSequenceClassification: ['cls.predictions.transform.LayerNorm.bias', 'cls.predictions.transform.LayerNorm.weight', 'cls.predictions.bias', 'cls.seq_relationship.weight', 'cls.predictions.decoder.weight', 'cls.predictions.transform.dense.bias', 'cls.seq_relationship.bias', 'cls.predictions.transform.dense.weight']
+- This IS expected if you are initializing BertForSequenceClassification from the checkpoint of a model trained on another task or with another architecture (e.g. initializing a BertForSequenceClassification model from a BertForPreTraining model).
+- This IS NOT expected if you are initializing BertForSequenceClassification from the checkpoint of a model that you expect to be exactly identical (initializing a BertForSequenceClassification model from a BertForSequenceClassification model).
+Some weights of BertForSequenceClassification were not initialized from the model checkpoint at bert-base-cased and are newly initialized: ['classifier.bias', 'classifier.weight']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+epoch 0: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+epoch 1: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+epoch 2: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+epoch 3: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+epoch 4: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+epoch 5: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+epoch 6: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+epoch 7: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+epoch 8: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+epoch 9: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+epoch 10: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+epoch 11: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+epoch 12: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+epoch 13: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+epoch 14: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+epoch 15: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+epoch 16: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+epoch 17: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+epoch 18: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+epoch 19: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+epoch 20: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+epoch 21: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+epoch 22: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+epoch 23: {'accuracy': 0.3161764705882353, 'f1': 0.0}
+epoch 24: {'accuracy': 0.31862745098039214, 'f1': 0.014184397163120569}
+epoch 25: {'accuracy': 0.3480392156862745, 'f1': 0.12500000000000003}
+epoch 26: {'accuracy': 0.49264705882352944, 'f1': 0.5263157894736842}
+epoch 27: {'accuracy': 0.6740196078431373, 'f1': 0.7878787878787878}
+epoch 28: {'accuracy': 0.6813725490196079, 'f1': 0.8099415204678363}
+epoch 29: {'accuracy': 0.678921568627451, 'f1': 0.8087591240875913}
+epoch 30: {'accuracy': 0.6813725490196079, 'f1': 0.8104956268221574}
+epoch 31: {'accuracy': 0.6838235294117647, 'f1': 0.8122270742358079}
+epoch 32: {'accuracy': 0.6838235294117647, 'f1': 0.8122270742358079}
+epoch 33: {'accuracy': 0.6838235294117647, 'f1': 0.8122270742358079}
+epoch 34: {'accuracy': 0.6838235294117647, 'f1': 0.8122270742358079}
+epoch 35: {'accuracy': 0.6838235294117647, 'f1': 0.8122270742358079}
+epoch 36: {'accuracy': 0.6838235294117647, 'f1': 0.8122270742358079}
+epoch 37: {'accuracy': 0.6838235294117647, 'f1': 0.8122270742358079}
+epoch 38: {'accuracy': 0.6838235294117647, 'f1': 0.8122270742358079}
+epoch 39: {'accuracy': 0.6862745098039216, 'f1': 0.8134110787172011}
+epoch 40: {'accuracy': 0.6862745098039216, 'f1': 0.8134110787172011}
+epoch 41: {'accuracy': 0.6911764705882353, 'f1': 0.8157894736842105}
+epoch 42: {'accuracy': 0.6911764705882353, 'f1': 0.8157894736842105}
+epoch 43: {'accuracy': 0.6911764705882353, 'f1': 0.8157894736842105}
+epoch 44: {'accuracy': 0.6936274509803921, 'f1': 0.8169838945827232}
+epoch 45: {'accuracy': 0.6936274509803921, 'f1': 0.8169838945827232}
+epoch 46: {'accuracy': 0.696078431372549, 'f1': 0.8176470588235294}
+epoch 47: {'accuracy': 0.6985294117647058, 'f1': 0.8188512518409425}
+epoch 48: {'accuracy': 0.6985294117647058, 'f1': 0.8177777777777778}
+epoch 49: {'accuracy': 0.7034313725490197, 'f1': 0.8180451127819548}
+epoch 50: {'accuracy': 0.7034313725490197, 'f1': 0.815267175572519}
+epoch 51: {'accuracy': 0.7107843137254902, 'f1': 0.8184615384615385}
+epoch 52: {'accuracy': 0.7156862745098039, 'f1': 0.8198757763975154}
+epoch 53: {'accuracy': 0.7181372549019608, 'f1': 0.8205928237129485}
+epoch 54: {'accuracy': 0.7450980392156863, 'f1': 0.8333333333333333}
+epoch 55: {'accuracy': 0.7671568627450981, 'f1': 0.8429752066115703}
+epoch 56: {'accuracy': 0.7647058823529411, 'f1': 0.8405315614617941}
+epoch 57: {'accuracy': 0.7671568627450981, 'f1': 0.8434925864909391}
+epoch 58: {'accuracy': 0.7696078431372549, 'f1': 0.8448844884488449}
+epoch 59: {'accuracy': 0.7696078431372549, 'f1': 0.8412162162162162}
+epoch 60: {'accuracy': 0.7720588235294118, 'f1': 0.8404802744425386}
+epoch 61: {'accuracy': 0.7818627450980392, 'f1': 0.8488964346349744}
+epoch 62: {'accuracy': 0.7843137254901961, 'f1': 0.8528428093645485}
+epoch 63: {'accuracy': 0.7818627450980392, 'f1': 0.8488964346349744}
+epoch 64: {'accuracy': 0.7720588235294118, 'f1': 0.8393782383419689}
+epoch 65: {'accuracy': 0.7818627450980392, 'f1': 0.8499156829679596}
+epoch 66: {'accuracy': 0.7818627450980392, 'f1': 0.8514190317195325}
+epoch 67: {'accuracy': 0.7720588235294118, 'f1': 0.8388214904679375}
+epoch 68: {'accuracy': 0.7720588235294118, 'f1': 0.8359788359788359}
+epoch 69: {'accuracy': 0.7818627450980392, 'f1': 0.8504201680672269}
+epoch 70: {'accuracy': 0.7916666666666666, 'f1': 0.8571428571428571}
+epoch 71: {'accuracy': 0.7769607843137255, 'f1': 0.8406304728546411}
+epoch 72: {'accuracy': 0.7745098039215687, 'f1': 0.8391608391608392}
+epoch 73: {'accuracy': 0.7916666666666666, 'f1': 0.8556876061120543}
+epoch 74: {'accuracy': 0.7916666666666666, 'f1': 0.8551959114139693}
+epoch 75: {'accuracy': 0.7696078431372549, 'f1': 0.8356643356643357}
+epoch 76: {'accuracy': 0.7769607843137255, 'f1': 0.8406304728546411}
+epoch 77: {'accuracy': 0.7867647058823529, 'f1': 0.8517887563884157}
+epoch 78: {'accuracy': 0.7892156862745098, 'f1': 0.8532423208191127}
+epoch 79: {'accuracy': 0.7769607843137255, 'f1': 0.8417391304347825}
+epoch 80: {'accuracy': 0.7794117647058824, 'f1': 0.84375}
+epoch 81: {'accuracy': 0.7892156862745098, 'f1': 0.8532423208191127}
+epoch 82: {'accuracy': 0.7843137254901961, 'f1': 0.8482758620689655}
+epoch 83: {'accuracy': 0.7867647058823529, 'f1': 0.849740932642487}
+epoch 84: {'accuracy': 0.7745098039215687, 'f1': 0.8391608391608392}
+epoch 85: {'accuracy': 0.7769607843137255, 'f1': 0.8411867364746947}
+epoch 86: {'accuracy': 0.7867647058823529, 'f1': 0.849740932642487}
+epoch 87: {'accuracy': 0.7867647058823529, 'f1': 0.849740932642487}
+epoch 88: {'accuracy': 0.7818627450980392, 'f1': 0.8457538994800694}
+epoch 89: {'accuracy': 0.7818627450980392, 'f1': 0.8452173913043478}
+epoch 90: {'accuracy': 0.7818627450980392, 'f1': 0.8457538994800694}
+epoch 91: {'accuracy': 0.7794117647058824, 'f1': 0.84375}
+epoch 92: {'accuracy': 0.7818627450980392, 'f1': 0.8457538994800694}
+epoch 93: {'accuracy': 0.7794117647058824, 'f1': 0.8442906574394463}
+epoch 94: {'accuracy': 0.7818627450980392, 'f1': 0.8462867012089811}
+epoch 95: {'accuracy': 0.7818627450980392, 'f1': 0.8462867012089811}
+epoch 96: {'accuracy': 0.7818627450980392, 'f1': 0.8462867012089811}
+epoch 97: {'accuracy': 0.7794117647058824, 'f1': 0.8442906574394463}
+epoch 98: {'accuracy': 0.7794117647058824, 'f1': 0.8442906574394463}
+epoch 99: {'accuracy': 0.7794117647058824, 'f1': 0.8442906574394463}
+Fatal error condition occurred in /opt/vcpkg/buildtrees/aws-c-io/src/9e6648842a-364b708815.clean/source/event_loop.c:72: aws_thread_launch(&cleanup_thread, s_event_loop_destroy_async_thread_fn, el_group, &thread_options) == AWS_OP_SUCCESS
+Exiting Application
+################################################################################
+Stack trace:
+################################################################################
+/gpfs/space/home/abdumali/.conda/envs/nlpcph/lib/python3.8/site-packages/pyarrow/libarrow.so.900(+0x200af06) [0x2ae3a88a5f06]
+/gpfs/space/home/abdumali/.conda/envs/nlpcph/lib/python3.8/site-packages/pyarrow/libarrow.so.900(+0x20028e5) [0x2ae3a889d8e5]
+/gpfs/space/home/abdumali/.conda/envs/nlpcph/lib/python3.8/site-packages/pyarrow/libarrow.so.900(+0x1f27e09) [0x2ae3a87c2e09]
+/gpfs/space/home/abdumali/.conda/envs/nlpcph/lib/python3.8/site-packages/pyarrow/libarrow.so.900(+0x200ba3d) [0x2ae3a88a6a3d]
+/gpfs/space/home/abdumali/.conda/envs/nlpcph/lib/python3.8/site-packages/pyarrow/libarrow.so.900(+0x1f25948) [0x2ae3a87c0948]
+/gpfs/space/home/abdumali/.conda/envs/nlpcph/lib/python3.8/site-packages/pyarrow/libarrow.so.900(+0x200ba3d) [0x2ae3a88a6a3d]
+/gpfs/space/home/abdumali/.conda/envs/nlpcph/lib/python3.8/site-packages/pyarrow/libarrow.so.900(+0x1ee0b46) [0x2ae3a877bb46]
+/gpfs/space/home/abdumali/.conda/envs/nlpcph/lib/python3.8/site-packages/pyarrow/libarrow.so.900(+0x194546a) [0x2ae3a81e046a]
+/lib64/libc.so.6(+0x39ce9) [0x2ae39f9a7ce9]
+/lib64/libc.so.6(+0x39d37) [0x2ae39f9a7d37]
+/lib64/libc.so.6(__libc_start_main+0xfc) [0x2ae39f99055c]
+/gpfs/space/home/abdumali/.conda/envs/nlpcph/bin/python(+0x1f9ad7) [0x5651e5a7aad7]
+Fatal error condition occurred in /opt/vcpkg/buildtrees/aws-c-io/src/9e6648842a-364b708815.clean/source/event_loop.c:72: aws_thread_launch(&cleanup_thread, s_event_loop_destroy_async_thread_fn, el_group, &thread_options) == AWS_OP_SUCCESS
+Exiting Application
+################################################################################
+Stack trace:
+################################################################################
+/gpfs/space/home/abdumali/.conda/envs/nlpcph/lib/python3.8/site-packages/pyarrow/libarrow.so.900(+0x200af06) [0x2ad911fcef06]
+/gpfs/space/home/abdumali/.conda/envs/nlpcph/lib/python3.8/site-packages/pyarrow/libarrow.so.900(+0x20028e5) [0x2ad911fc68e5]
+/gpfs/space/home/abdumali/.conda/envs/nlpcph/lib/python3.8/site-packages/pyarrow/libarrow.so.900(+0x1f27e09) [0x2ad911eebe09]
+/gpfs/space/home/abdumali/.conda/envs/nlpcph/lib/python3.8/site-packages/pyarrow/libarrow.so.900(+0x200ba3d) [0x2ad911fcfa3d]
+/gpfs/space/home/abdumali/.conda/envs/nlpcph/lib/python3.8/site-packages/pyarrow/libarrow.so.900(+0x1f25948) [0x2ad911ee9948]
+/gpfs/space/home/abdumali/.conda/envs/nlpcph/lib/python3.8/site-packages/pyarrow/libarrow.so.900(+0x200ba3d) [0x2ad911fcfa3d]
+/gpfs/space/home/abdumali/.conda/envs/nlpcph/lib/python3.8/site-packages/pyarrow/libarrow.so.900(+0x1ee0b46) [0x2ad911ea4b46]
+/gpfs/space/home/abdumali/.conda/envs/nlpcph/lib/python3.8/site-packages/pyarrow/libarrow.so.900(+0x194546a) [0x2ad91190946a]
+/lib64/libc.so.6(+0x39ce9) [0x2ad9090d0ce9]
+/lib64/libc.so.6(+0x39d37) [0x2ad9090d0d37]
+/lib64/libc.so.6(__libc_start_main+0xfc) [0x2ad9090b955c]
+/gpfs/space/home/abdumali/.conda/envs/nlpcph/bin/python(+0x1f9ad7) [0x5608ccd99ad7]
+ERROR:torch.distributed.elastic.multiprocessing.api:failed (exitcode: -6) local_rank: 0 (pid: 77981) of binary: /gpfs/space/home/abdumali/.conda/envs/nlpcph/bin/python
+Ended.
