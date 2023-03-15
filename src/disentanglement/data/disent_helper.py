@@ -30,6 +30,49 @@ def simplify_nq_dataset( json ):
                     short_s = rng['start_token']
                     short_e = rng['end_token']
                     answer = ' '.join( j['document_text'].split()[short_s:short_e] )
+                    if answer in context:
+                        break
+
+            if answer and context:
+                sub_contexts.append(context)
+                sub_answers.append(answer)
+
+        if answer:
+            idx = np.argmin([ len(ctx) for ctx in sub_contexts ])
+            
+            questions.append(question)
+            contexts.append(sub_contexts[idx])
+            answers.append(sub_answers[idx])
+
+    df = pd.DataFrame( list(zip(questions, contexts, answers)), columns=['question', 'context', 'answer'] )
+    return df
+
+def simplify_nq_dataset3( json ):
+    questions = []
+    answers = []
+    contexts = []
+
+    # extracting factual answers
+    for i, j in json.iterrows():
+        j = simplify_nq_example(j) # train set already simplified
+        question = j['question_text']
+        annots = j['annotations']
+        context = ''
+        answer = ''
+
+        sub_contexts = []
+        sub_answers = []
+
+        for a in annots:
+            long_s = a['long_answer']['start_token']
+            long_e = a['long_answer']['end_token']
+            context = ' '.join( j['document_text'].split()[long_s:long_e] )
+
+            if a['short_answers']:
+                for rng in a['short_answers']:        
+                    short_s = rng['start_token']
+                    short_e = rng['end_token']
+                    answer = ' '.join( j['document_text'].split()[short_s:short_e] )
                     break
 
             if answer and context:
@@ -45,6 +88,7 @@ def simplify_nq_dataset( json ):
 
     df = pd.DataFrame( list(zip(questions, contexts, answers)), columns=['question', 'context', 'answer'] )
     return df
+
 
 # This version is incorrect. It return less entries than the original dataset.
 def simplify_nq_dataset2(json, simplified=True):
