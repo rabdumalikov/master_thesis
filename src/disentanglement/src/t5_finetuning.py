@@ -9,53 +9,49 @@ from datetime import timedelta
 from timeit import default_timer as timer
 from transformers.optimization import Adafactor
 from transformers import T5Tokenizer, T5ForConditionalGeneration
-from transformers.adapters import PrefixTuningConfig, AdapterConfig, CompacterConfig, LoRAConfig, IA3Config
 
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 
-def create_pef_config(adapter_name: str):
+def create_T5_model(model_name: str, tokenizer: T5Tokenizer) -> T5ForConditionalGeneration:
 
-    if adapter_name == 'prefix_tuning':
-        config = PrefixTuningConfig(flat=False, prefix_length=8)
-    elif adapter_name == 'bottleneck_adapter':
-        config = AdapterConfig(mh_adapter=True, output_adapter=True,
-                               reduction_factor=16, non_linearity="relu")
-    elif adapter_name == 'compacter':
-        config = CompacterConfig()
-    elif adapter_name == 'lora':
-        config = LoRAConfig(r=8, alpha=16)
-    elif adapter_name == 'ia3':
-        config = IA3Config()
-
-    return config
-
-
-def create_T5_model(model_name: str, tokenizer: T5Tokenizer, adapter_name: str) -> T5ForConditionalGeneration:
-    model = T5ForConditionalGeneration.from_pretrained(
-        model_name, output_hidden_states=True)
-    model.resize_token_embeddings(len(tokenizer))
-
-    model.add_adapter(adapter_name, config=create_pef_config(adapter_name))
-    model.train_adapter(adapter_name)
-    model.set_active_adapters(adapter_name)
-
-    model = model.to(device)
+    model = T5ForConditionalGeneration.from_pretrained(model_name, device_map='balanced')
+    model.resize_token_embeddings( len(tokenizer) )
+    model.gradient_checkpointing_enable()
+    model.config.use_cache = False
 
     print("Finished loading model")
 
     return model
 
-adapter_name = 'prefix_tuning'  # bottleneck_adapter
-tuning_name = 'softprompt'
+# Create the parser
+parser = argparse.ArgumentParser(description='fine-tuning')
+
+# Add the positional argument
+parser.add_argument('-m', '--model_name', type=str,
+                    help='short name of T5 model(large|xl|xxl)')
+parser.add_argument('-e', '--exp_id', type=int, help='experiment id')
+
+parser.add_argument('-p', '--process_id', type=int, help='id of the process')
+parser.add_argument('-f', '--folder', type=str, help='folder for output')
+parser.add_argument('-g', '--gpu_name', type=str,
+                    help='name of the gpu that will be used')
+
+# Parse the arguments
+args = parser.parse_args()
+
+device = deduce_device()
+model_name = get_model_name(args.model_name)
+tuning_name = 'finetuning'
 best_em_score = 0.0
 
 tokenizer = create_tokenizer(model_name=model_name)
 
 print_gpu_utilization()
+
 training_elems = TrainingElements(
-    create_T5_model(model_name, tokenizer,
-                    adapter_name), tokenizer, torch.cuda.amp.GradScaler(),
+    create_T5_model(model_name, tokenizer), tokenizer, torch.cuda.amp.GradScaler(),
     lambda model: create_optimizer(model))
+
 print_gpu_utilization()
 
 training_config = TrainingConfig(
@@ -69,13 +65,11 @@ training_config = TrainingConfig(
 
 training_data = TrainingData(config=training_config, tokenizer=tokenizer)
 
+print(f'{model_name=} {training_config.batch_size=} {training_config.epochs=}')
 
-def run( training_config: TrainingConfig ):
+def main():
 
     print("Training started...")
-    print(f'{model_name=} {adapter_name} {create_pef_config(adapter_name)}\
-      {training_config.batch_size=} {training_config.epochs=}')
-
     for e in range(1, training_config.epochs):
 
         training_elems.model.train()
@@ -106,3 +100,6 @@ def run( training_config: TrainingConfig ):
     print(f'{best_em_score=}')
 
     wandb.log({'best_em_score': best_em_score})
+
+if __name__ == "__main__":
+    main()

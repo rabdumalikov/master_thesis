@@ -244,8 +244,8 @@ def validate(training_elements: TrainingElements, training_data: TrainingData, t
     exact_match_acc = evaluate(
         training_elements, training_config.device, training_data.test_loader)
 
-    wandb.log({'epoch': e, 'em_acc': exact_match_acc})
-    
+    wandb.log({'epoch': e, 'loss': loss, 'em_acc': exact_match_acc})
+
     print(f'\te={training_config.epoch}, {exact_match_acc=}')
 
     if exact_match_acc > best_em_score:
@@ -291,3 +291,10 @@ def train_step(training_elements: TrainingElements, config: TrainingConfig, trai
         torch.cuda.empty_cache()
 
     return loss.item()
+
+
+def deduce_device() -> torch.device:
+    device = torch.device("cpu")
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    return device
