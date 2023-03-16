@@ -2,7 +2,7 @@ import os
 import torch
 import argparse
 
-from .utils import *
+from utils import *
 from datetime import timedelta
 from timeit import default_timer as timer
 from transformers.optimization import Adafactor
@@ -85,6 +85,8 @@ parser = argparse.ArgumentParser(description='p-tuning')
 # Add the positional argument
 parser.add_argument('-m', '--model_name', type=str,
                     help='short name of T5 model(large|xl|xxl)')
+parser.add_argument('-e', '--exp_id', type=int, help='experiment id')
+
 parser.add_argument('-f', '--folder', type=str, help='folder for output')
 parser.add_argument('-g', '--gpu_name', type=str,
                     help='name of the gpu that will be used')
@@ -95,7 +97,6 @@ args = parser.parse_args()
 device = deduce_device()
 model_name = get_model_name(args.model_name)
 adapter_name = 'prefix_tuning'  # bottleneck_adapter
-number_gpus = get_number_of_gpus()
 best_em_score = 0.0
 
 tokenizer = create_tokenizer(model_name=model_name)
@@ -108,11 +109,12 @@ training_elems = TrainingElements(
 print_gpu_utilization()
 
 training_config = TrainingConfig(
-    number_gpus,
+    model_name=model_name,
     gradient_accumulation_steps=2 if args.gpu_name == '40g' else 1,
     batch_size=16 if args.gpu_name == '40g' else 32,
     # math.ceil(50000 / (len(train_set)//32))
-    gpu_stat_every=500, evaluation_every=1, epochs=100
+    gpu_stat_every=500, evaluation_every=1, num_gpus=get_number_of_gpus()
+    device=device, experiment_id=args.exp_id, epochs=100
 )
 
 training_data = TrainingData(args.exp_id)

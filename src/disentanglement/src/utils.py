@@ -18,7 +18,8 @@ class TrainingConfig:
                  gradient_accumulation_steps: int,
                  batch_size: int,
                  gpu_stat_every: int, evaluation_every: int, device: torch.device,
-                 experiment_id: int):
+                 experiment_id: int,
+                 epochs: int):
 
         self.model_name = model_name
         self.num_gpus = num_gpus
@@ -29,6 +30,7 @@ class TrainingConfig:
         self.eval_batch_size = batch_size * 3
         self.device = device
         self.experiment_id = experiment_id
+        self.epochs = epochs
 
 
 class TrainingData:
