@@ -4,6 +4,7 @@ import argparse
 import utils
 import t5_ptuning
 import t5_finetuning
+import t5_inctxlearning
 
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 
@@ -29,7 +30,7 @@ def main():
                         help='name of the gpu that will be used')
 
     parser.add_argument(
-        '-t', '--tuning', choices=['ftuning', 'ptuning', 'adapters', 'lora', 'adversarial_training'])
+        '-t', '--tuning', choices=['ftuning', 'ptuning', 'adapters', 'lora', 'adversarial_training', 'in-context-learning'])
 
     # Parse the arguments
     args = parser.parse_args()
@@ -59,6 +60,8 @@ def main():
         best_em_score = t5_finetuning.run(config)
     elif args.tuning == 'ptuning':
         best_em_score = t5_ptuning.run(config)
+    elif args.tuning == 'in-context-learning':
+        best_em_score = t5_inctxlearning.run(config)
 
     print("\n============================\n")
     print(f'{best_em_score=}')

@@ -39,18 +39,18 @@ class TrainingConfig:
 
 
 class TrainingData:
-    def __init__(self, config: TrainingConfig, tokenizer: T5Tokenizer):
+    def __init__(self, config: TrainingConfig, tokenizer: T5Tokenizer, closure=None):
         train_set, val_set, test_set = get_data(config.experiment_id)
 
         print(
             f'TrainingData: {len(train_set)=} {len(val_set)=} {len(test_set)=}')
 
         self.train_loader = DataLoader(PandasDataset(train_set), collate_fn=lambda inp: collate_fn(
-            inp, tokenizer), batch_size=config.batch_size, num_workers=4, pin_memory=True)
+            inp, tokenizer, closure), batch_size=config.batch_size, num_workers=4, pin_memory=True)
         self.val_loader = DataLoader(PandasDataset(val_set), collate_fn=lambda inp: collate_fn(
-            inp, tokenizer), batch_size=config.eval_batch_size, num_workers=4, pin_memory=True)
+            inp, tokenizer, closure), batch_size=config.eval_batch_size, num_workers=4, pin_memory=True)
         self.test_loader = DataLoader(PandasDataset(test_set), collate_fn=lambda inp: collate_fn(
-            inp, tokenizer), batch_size=config.eval_batch_size, num_workers=4, pin_memory=True)
+            inp, tokenizer, closure), batch_size=config.eval_batch_size, num_workers=4, pin_memory=True)
 
 
 class TrainingElements:
@@ -141,11 +141,14 @@ def _get_data_path_for(experiment_id: int) -> Tuple[str, str, str]:
     return director+train, director+val, director+test
 
 
-def collate_fn(input: pd.DataFrame, tokenizer: T5Tokenizer):
+def collate_fn(input: pd.DataFrame, tokenizer: T5Tokenizer, closure=None):
 
     input = pd.concat(input, axis=1).T
 
-    que_ctx = input['input'].values.tolist()
+    if closure is not None:
+        que_ctx = closure(input)
+    else:
+        que_ctx = input['input'].values.tolist()
 
     source_dict = tokenizer(que_ctx,  # Sentence to encode.
                             add_special_tokens=True,  # Add '[CLS]' and '[SEP]'
