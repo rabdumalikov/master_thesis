@@ -197,7 +197,9 @@ class PandasDataset(Dataset):
 
 
 @torch.no_grad()
-def evaluate(training_elements: TrainingElements, config: TrainingConfig, device: torch.device, data_loader: DataLoader, verbose: bool = False) -> float:
+def evaluate(training_elements: TrainingElements, config: TrainingConfig,
+             device: torch.device, data_loader: DataLoader,
+             verbose: bool = False, **kwargs) -> float:
 
     print("Evaluating...")
 
@@ -221,7 +223,8 @@ def evaluate(training_elements: TrainingElements, config: TrainingConfig, device
         with autocast(dtype=torch.bfloat16, enabled=config.FP16):
             generated_ids = training_elements.model.generate(
                 input_ids=src_ids,
-                attention_mask=src_am
+                attention_mask=src_am,
+                **kwargs
             )
 
         preds = training_elements.tokenizer.batch_decode(
@@ -245,7 +248,7 @@ def evaluate(training_elements: TrainingElements, config: TrainingConfig, device
 
 
 def validate(training_elements: TrainingElements, training_data: TrainingData,
-             training_config: TrainingConfig, current_epoch: int, loss: float, folder: str, best_em_score: float):
+             training_config: TrainingConfig, current_epoch: int, loss: float, folder: str, best_em_score: float, **kwargs):
 
     torch.cuda.empty_cache()
 
@@ -253,7 +256,7 @@ def validate(training_elements: TrainingElements, training_data: TrainingData,
         return
 
     exact_match_acc = evaluate(
-        training_elements, training_config.device, training_data.test_loader)
+        training_elements, training_config.device, training_data.test_loader, **kwargs)
 
     wandb.log({'epoch': current_epoch,
               'loss': loss, 'em_acc': exact_match_acc})
@@ -272,7 +275,8 @@ def validate(training_elements: TrainingElements, training_data: TrainingData,
     return best_em_score
 
 
-def train_step(training_elements: TrainingElements, config: TrainingConfig, train_batch, batch_idx: int, need_to_optimize: bool):
+def train_step(training_elements: TrainingElements, config: TrainingConfig,
+               train_batch, batch_idx: int, need_to_optimize: bool, **kwargs):
 
     torch.cuda.empty_cache()
 
@@ -287,7 +291,8 @@ def train_step(training_elements: TrainingElements, config: TrainingConfig, trai
         loss = training_elements.model(
             input_ids=src_ids,
             attention_mask=src_am,
-            labels=lm_labels.to(f'cuda:{config.num_gpus-1}')
+            labels=lm_labels.to(f'cuda:{config.num_gpus-1}'),
+            **kwargs
         )[0]
 
     # normalize loss to account for batch accumulation
