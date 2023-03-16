@@ -1,4 +1,5 @@
 import gzip
+import wandb
 import torch
 import tarfile
 import numpy as np
@@ -19,7 +20,9 @@ class TrainingConfig:
                  batch_size: int,
                  gpu_stat_every: int, evaluation_every: int, device: torch.device,
                  experiment_id: int,
-                 epochs: int):
+                 epochs: int,
+                 model_saving_folder: str,
+                 FP16: bool = False):
 
         self.model_name = model_name
         self.num_gpus = num_gpus
@@ -31,7 +34,8 @@ class TrainingConfig:
         self.device = device
         self.experiment_id = experiment_id
         self.epochs = epochs
-        self.FP16 = False
+        self.FP16 = FP16
+        self.model_saving_folder = model_saving_folder
 
 
 class TrainingData:
@@ -55,6 +59,10 @@ class TrainingElements:
         self.tokenizer = tokenizer
         self.scaler = scaler
         self.optimizer = optimizer(model)
+
+
+def get_number_of_epochs(epochs: int) -> int:
+    return epochs  # math.ceil(50000 / (len(train_set)//32))
 
 
 def get_number_of_gpus() -> int:
@@ -233,29 +241,32 @@ def evaluate(training_elements: TrainingElements, config: TrainingConfig, device
     return exact_match_acc['exact_match']
 
 
-def validate(training_elements: TrainingElements, training_data: TrainingData, training_config: TrainingConfig, loss: float, folder: str):
-    global best_em_score
+def validate(training_elements: TrainingElements, training_data: TrainingData,
+             training_config: TrainingConfig, current_epoch: int, loss: float, folder: str, best_em_score: float):
 
     torch.cuda.empty_cache()
 
-    if training_config.epoch % training_config.evaluation_every != 0:
+    if current_epoch % training_config.evaluation_every != 0:
         return
 
     exact_match_acc = evaluate(
         training_elements, training_config.device, training_data.test_loader)
 
-    wandb.log({'epoch': e, 'loss': loss, 'em_acc': exact_match_acc})
+    wandb.log({'epoch': current_epoch,
+              'loss': loss, 'em_acc': exact_match_acc})
 
-    print(f'\te={training_config.epoch}, {exact_match_acc=}')
+    print(f'\te={current_epoch}, {exact_match_acc=}')
 
     if exact_match_acc > best_em_score:
         best_em_score = exact_match_acc
 
         print(
-            f'Saving model at e={training_config.epoch} with bestEM={best_em_score}')
+            f'Saving model at e={current_epoch} with bestEM={best_em_score}')
 
         save_model(training_elements.model, exact_match_acc, loss,
-                   training_config.epoch, training_config.model_name, folder)
+                   current_epoch, training_config.model_name, folder)
+
+    return best_em_score
 
 
 def train_step(training_elements: TrainingElements, config: TrainingConfig, train_batch, batch_idx: int, need_to_optimize: bool):

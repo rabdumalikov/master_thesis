@@ -1,17 +1,13 @@
-import os
 import wandb
 import torch
-import argparse
+import common_utils
 
 from utils import *
-from common_utils import *
 from datetime import timedelta
 from timeit import default_timer as timer
-from transformers.optimization import Adafactor
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 from transformers.adapters import PrefixTuningConfig, AdapterConfig, CompacterConfig, LoRAConfig, IA3Config
 
-os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 
 def create_pef_config(adapter_name: str):
 
@@ -30,7 +26,7 @@ def create_pef_config(adapter_name: str):
     return config
 
 
-def create_T5_model(model_name: str, tokenizer: T5Tokenizer, adapter_name: str) -> T5ForConditionalGeneration:
+def create_T5_model(model_name: str, tokenizer: T5Tokenizer, adapter_name: str, device: torch.device) -> T5ForConditionalGeneration:
     model = T5ForConditionalGeneration.from_pretrained(
         model_name, output_hidden_states=True)
     model.resize_token_embeddings(len(tokenizer))
@@ -45,38 +41,35 @@ def create_T5_model(model_name: str, tokenizer: T5Tokenizer, adapter_name: str) 
 
     return model
 
-adapter_name = 'prefix_tuning'  # bottleneck_adapter
-tuning_name = 'softprompt'
-best_em_score = 0.0
 
-tokenizer = create_tokenizer(model_name=model_name)
+def create_stuff(config: TrainingConfig, adapter_name: str):
 
-print_gpu_utilization()
-training_elems = TrainingElements(
-    create_T5_model(model_name, tokenizer,
-                    adapter_name), tokenizer, torch.cuda.amp.GradScaler(),
-    lambda model: create_optimizer(model))
-print_gpu_utilization()
+    tokenizer = common_utils.create_tokenizer(model_name=config.model_name)
 
-training_config = TrainingConfig(
-    model_name=model_name,
-    gradient_accumulation_steps=2 if args.gpu_name == '40g' else 1,
-    batch_size=16 if args.gpu_name == '40g' else 32,
-    # math.ceil(50000 / (len(train_set)//32))
-    gpu_stat_every=500, evaluation_every=1, num_gpus=get_number_of_gpus(),
-    device=device, experiment_id=args.exp_id, epochs=100
-)
+    print_gpu_utilization()
+    training_elems = TrainingElements(
+        create_T5_model(config.model_name, tokenizer,
+                        adapter_name, config.device), tokenizer, torch.cuda.amp.GradScaler(),
+        lambda model: common_utils.create_optimizer(model))
+    print_gpu_utilization()
 
-training_data = TrainingData(config=training_config, tokenizer=tokenizer)
+    training_data = TrainingData(config=config, tokenizer=tokenizer)
+
+    return training_elems, training_data
 
 
-def run( training_config: TrainingConfig ):
+def run(config: TrainingConfig) -> float:
+    adapter_name = 'prefix_tuning'  # bottleneck_adapter
+
+    training_elems, training_data = create_stuff(config, adapter_name)
 
     print("Training started...")
-    print(f'{model_name=} {adapter_name} {create_pef_config(adapter_name)}\
-      {training_config.batch_size=} {training_config.epochs=}')
+    print(f'{config.model_name=} {adapter_name} {create_pef_config(adapter_name)}\
+      {config.batch_size=} {config.epochs=}')
 
-    for e in range(1, training_config.epochs):
+    best_em_score = 0.0
+
+    for e in range(1, config.epochs):
 
         training_elems.model.train()
         torch.cuda.empty_cache()
@@ -85,24 +78,22 @@ def run( training_config: TrainingConfig ):
 
         start = timer()
         for batch_idx, train_batch in enumerate(training_data.train_loader, 1):
-            need_to_optimize = ((batch_idx + 1) % training_config.gradient_accumulation_steps ==
+            need_to_optimize = ((batch_idx + 1) % config.gradient_accumulation_steps ==
                                 0) or (batch_idx + 1 == len(training_data.train_loader))
-            loss = train_step(training_elements=training_elems, 
-                config=training_config, train_batch=train_batch, 
-                batch_idx=batch_idx, need_to_optimize=need_to_optimize)
+            loss = train_step(training_elements=training_elems,
+                              config=config, train_batch=train_batch,
+                              batch_idx=batch_idx, need_to_optimize=need_to_optimize)
 
             losses.append(loss)
         end = timer()
 
         print(f'loss={sum(losses)/len(losses)}')
-        
+
         print(f'{e} took ', timedelta(seconds=end-start))
 
         wandb.log({'epoch': e, 'elapsed_time': timedelta(seconds=end-start)})
 
-        validate(training_elems, training_data, training_config, e, sum(losses)/len(losses), args.folder)
+        best_em_score = validate(training_elems, training_data, config,
+                                 e, sum(losses)/len(losses), config.model_saving_folder, best_em_score)
 
-    print("\n============================\n")
-    print(f'{best_em_score=}')
-
-    wandb.log({'best_em_score': best_em_score})
+    return best_em_score
