@@ -4,3 +4,7 @@ ml-knowledge-conflicts/
 *.jsonl
 *.csv
 untitled folder/
+*.out
+*.sh
+.*
+wandb/

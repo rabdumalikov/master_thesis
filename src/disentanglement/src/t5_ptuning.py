@@ -1,4 +1,5 @@
 import os
+import wandb
 import torch
 import argparse
 
@@ -87,6 +88,7 @@ parser.add_argument('-m', '--model_name', type=str,
                     help='short name of T5 model(large|xl|xxl)')
 parser.add_argument('-e', '--exp_id', type=int, help='experiment id')
 
+parser.add_argument('-p', '--process_id', type=int, help='id of the process')
 parser.add_argument('-f', '--folder', type=str, help='folder for output')
 parser.add_argument('-g', '--gpu_name', type=str,
                     help='name of the gpu that will be used')
@@ -97,6 +99,7 @@ args = parser.parse_args()
 device = deduce_device()
 model_name = get_model_name(args.model_name)
 adapter_name = 'prefix_tuning'  # bottleneck_adapter
+tuning_name = 'softprompt'
 best_em_score = 0.0
 
 tokenizer = create_tokenizer(model_name=model_name)
@@ -113,17 +116,27 @@ training_config = TrainingConfig(
     gradient_accumulation_steps=2 if args.gpu_name == '40g' else 1,
     batch_size=16 if args.gpu_name == '40g' else 32,
     # math.ceil(50000 / (len(train_set)//32))
-    gpu_stat_every=500, evaluation_every=1, num_gpus=get_number_of_gpus()
+    gpu_stat_every=500, evaluation_every=1, num_gpus=get_number_of_gpus(),
     device=device, experiment_id=args.exp_id, epochs=100
 )
 
-training_data = TrainingData(args.exp_id)
+training_data = TrainingData(config=training_config, tokenizer=tokenizer)
 
 print(f'{model_name=} {adapter_name} {create_pef_config(adapter_name)}\
       {training_config.batch_size=} {training_config.epochs=}')
 
 
 def main():
+
+    # start a new wandb run to track this script
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="MasterThesis",
+        id=str(args.process_id),
+        name=f'MT-T5_{args.model_name}-{tuning_name}-{args.process_id}',   
+        # track hyperparameters and run metadata
+        config=vars(training_config)
+    )
 
     print("Training started...")
     for e in range(1, training_config.epochs):
@@ -137,18 +150,26 @@ def main():
         for batch_idx, train_batch in enumerate(training_data.train_loader, 1):
             need_to_optimize = ((batch_idx + 1) % training_config.gradient_accumulation_steps ==
                                 0) or (batch_idx + 1 == len(training_data.train_loader))
-            loss = train_step(train_batch, batch_idx, need_to_optimize)
+            loss = train_step(training_elements=training_elems, 
+                config=training_config, train_batch=train_batch, 
+                batch_idx=batch_idx, need_to_optimize=need_to_optimize)
+
             losses.append(loss)
         end = timer()
 
         print(f'loss={sum(losses)/len(losses)}')
-
+        
         print(f'{e} took ', timedelta(seconds=end-start))
+        
+        wandb.log({'epoch': e, 'elapsed_time': timedelta(seconds=end-start)})
 
-        validate(e, sum(losses)//len(losses), args.folder)
+        validate(e, sum(losses)/len(losses), args.folder)
 
     print("\n============================\n")
     print(f'{best_em_score=}')
+
+    wandb.log({'best_em_score': best_em_score})
+    wandb.finish()
 
 
 if __name__ == "__main__":
