@@ -3,6 +3,7 @@ import torch
 import common_utils
 
 from utils import *
+from transformers.optimization import Adafactor
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 from transformers.adapters import PrefixTuningConfig, AdapterConfig, CompacterConfig, LoRAConfig, IA3Config
 
@@ -10,7 +11,7 @@ from transformers.adapters import PrefixTuningConfig, AdapterConfig, CompacterCo
 def create_pef_config(adapter_name: str):
 
     if adapter_name == 'prefix_tuning':
-        config = PrefixTuningConfig(flat=False, prefix_length=8)
+        config = PrefixTuningConfig(flat=False, prefix_length=1)
     elif adapter_name == 'bottleneck_adapter':
         config = AdapterConfig(mh_adapter=True, output_adapter=True,
                                reduction_factor=16, non_linearity="relu")
@@ -55,9 +56,22 @@ def create_stuff(config: TrainingConfig, adapter_name: str):
 
     return training_elems, training_data
 
+def create_optimizer(model: T5ForConditionalGeneration) -> Adafactor:
+    return Adafactor(
+        model.parameters(),
+        lr=0.1,
+        eps=(1e-30, 1e-3),
+        clip_threshold=1.0,
+        decay_rate=-0.8,
+        beta1=None,
+        weight_decay=0.0,
+        relative_step=False,
+        scale_parameter=False,
+        warmup_init=False,
+    )
 
 def run(config: TrainingConfig) -> float:
-    adapter_name = 'lora'  # bottleneck_adapter
+    adapter_name = 'prefix_tuning'  # bottleneck_adapter
 
     training_elems, training_data = create_stuff(config, adapter_name)
 

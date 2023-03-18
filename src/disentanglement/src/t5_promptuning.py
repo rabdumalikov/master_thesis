@@ -54,9 +54,7 @@ def create_T5_model(config: TrainingConfig, tokenizer: T5Tokenizer) -> T5ForCond
 
     # Prompt Config
     prompt_len = 100
-    hidden_dim = 768
-    prompt_model = PromptTuning(pretrained_config=model.config,
-                                prompt_len=prompt_len, hidden_dim=hidden_dim).to(config.device)
+    prompt_model = PromptTuning(pretrained_config=model.config, prompt_len=prompt_len).to(config.device)
 
     print("Finished loading model")
 

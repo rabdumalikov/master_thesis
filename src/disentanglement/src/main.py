@@ -61,17 +61,20 @@ def main():
     print(f'Arguments: {args}')
 
     if args.tuning == 'ftuning':
-        import t5_ptuning
+        import t5_finetuning
         best_em_score = t5_finetuning.run(config)
     elif args.tuning == 'ptuning':
-        import t5_finetuning
+        import t5_ptuning
         best_em_score = t5_ptuning.run(config)
     elif args.tuning == 'promptuning':
-        import t5_promptuning
-        best_em_score = t5_promptuning.run(config)
+        import t5_promptuning2
+        best_em_score = t5_promptuning2.run(config)
     elif args.tuning == 'in-context-learning':
         import t5_inctxlearning
         best_em_score = t5_inctxlearning.run(config)
+    elif args.tuning == 'adversarial_training':
+        import t5_adversarial_training
+        best_em_score = t5_adversarial_training.run(config)
 
     print("\n============================\n")
     print(f'{best_em_score=}')

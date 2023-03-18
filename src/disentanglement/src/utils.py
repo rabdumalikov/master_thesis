@@ -15,7 +15,7 @@ from typing import Tuple, List, Dict
 from timeit import default_timer as timer
 from torch.cuda.amp import autocast, GradScaler
 from transformers import T5Tokenizer, T5ForConditionalGeneration
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, RandomSampler
 
 class TimeMeasure:
     def __init__(self, epoch: int):
@@ -31,7 +31,7 @@ class TimeMeasure:
 
         print(f'Epoch={self.epoch} took {elapsed_time}')
 
-        wandb.log({'epoch': self.epoch, 'elapsed_time': elapsed_time.total_seconds()})
+        wandb.log({'epoch': self.epoch, 'epoch_duration(m)': (elapsed_time.total_seconds()%3600)//60 })
 
 class TrainingConfig:
     def __init__(self, model_name: str, num_gpus: int,
@@ -58,8 +58,8 @@ class TrainingConfig:
 
 
 class TrainingData:
-    def __init__(self, config: TrainingConfig, tokenizer: T5Tokenizer, closure=None, 
-                 allowed_test_sets: List[int] = ['f', 'cf', 'a(e)', 'a(r)']):
+    def __init__(self, config: TrainingConfig, 
+                allowed_test_sets: List[int] = ['f', 'cf', 'a(e)', 'a(r)'], **kwargs):
 
         test_mapping = {'factual': 'f', 'counterfactual': 'cf', 
             'closed_book': 'a(e)', 'random_context': 'a(r)' }
@@ -70,17 +70,20 @@ class TrainingData:
             f'TrainingData: {len(train_set)=} {len(val_set)=} {len(test_set)=}')
 
         self.train_loader = DataLoader(PandasDataset(train_set), collate_fn=lambda inp: collate_fn(
-            inp, tokenizer, closure), batch_size=config.batch_size, num_workers=4, pin_memory=True)
+            inp, **kwargs), batch_size=config.batch_size, num_workers=4, pin_memory=True)
         self.val_loader = DataLoader(PandasDataset(val_set), collate_fn=lambda inp: collate_fn(
-            inp, tokenizer, closure), batch_size=config.eval_batch_size, num_workers=4, pin_memory=True)
+            inp, **kwargs), batch_size=config.eval_batch_size, num_workers=4, pin_memory=True)
 
         self.test_loaders = {}
         for k in test_set:
             if k not in allowed_test_sets:
                 continue
+            
+            sampler = RandomSampler(PandasDataset(test_set[k]), replacement=True)
 
-            self.test_loaders[k] = DataLoader(PandasDataset(test_set[k]), collate_fn=lambda inp: collate_fn(
-                inp, tokenizer, closure), batch_size=config.eval_batch_size, num_workers=4, pin_memory=True)
+            self.test_loaders[k] = DataLoader(PandasDataset(test_set[k]), sampler=sampler, collate_fn=lambda inp: collate_fn(
+                inp, **kwargs), batch_size=config.eval_batch_size, num_workers=4, pin_memory=True)
+
 
 class TrainingElements:
     def __init__(self, model: T5ForConditionalGeneration, tokenizer: T5Tokenizer, scaler: GradScaler, optimizer, prompt_model = None):
@@ -196,7 +199,7 @@ def _get_data_path_for(experiment_id: int) -> Tuple[str, str, str]:
     return director+train, director+val, director+test
 
 
-def collate_fn(input: pd.DataFrame, tokenizer: T5Tokenizer, closure=None):
+def collate_fn(input: pd.DataFrame, tokenizer: T5Tokenizer, closure=None, postprocessing=None):
 
     input = pd.concat(input, axis=1).T
 
@@ -215,12 +218,14 @@ def collate_fn(input: pd.DataFrame, tokenizer: T5Tokenizer, closure=None):
                             truncation=True,
                             return_tensors='pt',     # Return pytorch tensors.
                             )
+    if postprocessing is not None:
+        source_dict = postprocessing( source_dict )
 
     answers = input['contextual_answer'].values.tolist()
 
     target_dict = tokenizer(answers,  # Sentence to encode.
                             add_special_tokens=True,  # Add '[CLS]' and '[SEP]'
-                            max_length=16,      # Pad & truncate all sentences.
+                            max_length=17,      # Pad & truncate all sentences.
                             padding='max_length',
                             # Construct attn. masks.
                             return_attention_mask=True,
@@ -238,8 +243,9 @@ def save_model(training_elements: TrainingElements, em_score: float, loss: float
 
     checkpoint_path = f'{folder}/checkpoint_{e}'
     
-    os.mkdir(checkpoint_path)
-
+    if not os.path.exists(checkpoint_path):
+        os.makedirs(checkpoint_path)
+    
     with open(f'{checkpoint_path}/results.txt', 'w') as f:
         f.write(f'epoch={e}\nloss={loss}\nem={round(em_score,3)}')
 
@@ -306,7 +312,8 @@ def evaluate(training_elements: TrainingElements, config: TrainingConfig,
 
 
 def validate(training_elements: TrainingElements, training_data: TrainingData,
-             training_config: TrainingConfig, current_epoch: int, loss: float, folder: str, best_em_score: float, verbose: bool = False, **kwargs):
+             training_config: TrainingConfig, current_epoch: int, loss: float, 
+             folder: str, best_em_score: float, verbose: bool = False, **kwargs):
 
     torch.cuda.empty_cache()
 
@@ -352,6 +359,7 @@ def train_step(training_elements: TrainingElements, config: TrainingConfig,
         loss = training_elements.model(
             input_ids=src_ids,
             attention_mask=src_am,
+            #decoder_input_ids=trg_ids[:, :-1], labels=None,
             labels=lm_labels.to(f'cuda:{config.num_gpus-1}'),
             **kwargs
         )[0]
