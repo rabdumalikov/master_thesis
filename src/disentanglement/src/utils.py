@@ -6,14 +6,32 @@ import tarfile
 import numpy as np
 import pandas as pd
 
+
 from pynvml import *
 from tqdm import tqdm
 from typing import Tuple
 from evaluate import load
+from datetime import timedelta
+from timeit import default_timer as timer
 from torch.cuda.amp import autocast, GradScaler
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 from torch.utils.data import DataLoader, Dataset
 
+class TimeMeasure:
+    def __init__(self, epoch: int):
+        self.start = ''
+        self.epoch = epoch
+
+    def __enter__(self):
+        self.start = timer()
+        return self
+
+    def __exit__(self, type, value, traceback):
+        elapsed_time = timedelta(seconds=timer()-start)
+
+        print(f'Epoch={self.epoch} took {elapsed_time}')
+
+        wandb.log({'epoch': e, 'elapsed_time': elapsed_time.total_seconds()})
 
 class TrainingConfig:
     def __init__(self, model_name: str, num_gpus: int,

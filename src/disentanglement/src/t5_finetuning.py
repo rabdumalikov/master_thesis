@@ -3,8 +3,6 @@ import torch
 import common_utils
 
 from utils import *
-from datetime import timedelta
-from timeit import default_timer as timer
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 
 
@@ -53,27 +51,19 @@ def run(config: TrainingConfig):
 
         losses = []
 
-        start = timer()
-        for batch_idx, train_batch in enumerate(training_data.train_loader, 1):
-            need_to_optimize = ((batch_idx + 1) % config.gradient_accumulation_steps ==
-                                0) or (batch_idx + 1 == len(training_data.train_loader))
-            loss = train_step(training_elements=training_elems,
-                              config=config, train_batch=train_batch,
-                              batch_idx=batch_idx, need_to_optimize=need_to_optimize)
+        with TimeMeasure(epoch=e) as tm:
+            for batch_idx, train_batch in enumerate(training_data.train_loader, 1):
+                need_to_optimize = ((batch_idx + 1) % config.gradient_accumulation_steps ==
+                                    0) or (batch_idx + 1 == len(training_data.train_loader))
+                loss = train_step(training_elements=training_elems,
+                                config=config, train_batch=train_batch,
+                                batch_idx=batch_idx, need_to_optimize=need_to_optimize)
 
-            losses.append(loss)
-
-        end = timer()
+                losses.append(loss)
 
         loss = sum(losses)/len(losses)
 
         print(f'{loss=}')
-
-        elapsed_time = str(timedelta(seconds=end-start))
-
-        print(f'{e} took ', elapsed_time)
-
-        wandb.log({'epoch': e, 'elapsed_time': elapsed_time})
 
         best_em_score = validate(training_elems, training_data, config,
                                  e, loss, config.model_saving_folder, best_em_score)

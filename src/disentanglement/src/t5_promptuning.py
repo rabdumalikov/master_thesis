@@ -5,8 +5,6 @@ import common_utils
 import torch
 import torch.nn as nn
 
-from utils import *
-from datetime import timedelta
 from timeit import default_timer as timer
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 
@@ -44,10 +42,11 @@ class PromptTuning(nn.Module):
 def create_T5_model(config: TrainingConfig, tokenizer: T5Tokenizer) -> T5ForConditionalGeneration:
 
     model = T5ForConditionalGeneration.from_pretrained(
-        config.model_name, device_map='balanced')
+        config.model_name)#, device_map='balanced')
     model.resize_token_embeddings(len(tokenizer))
     model.gradient_checkpointing_enable()
     model.config.use_cache = False
+    model.cuda()
 
     # Freeze LM
     for param in model.parameters():
@@ -55,7 +54,7 @@ def create_T5_model(config: TrainingConfig, tokenizer: T5Tokenizer) -> T5ForCond
 
     # Prompt Config
     prompt_len = 100
-    hidden_dim = 512
+    hidden_dim = 768
     prompt_model = PromptTuning(pretrained_config=model.config,
                                 prompt_len=prompt_len, hidden_dim=hidden_dim).to(config.device)
 
@@ -98,35 +97,27 @@ def run(config: TrainingConfig):
 
         losses = []
 
-        start = timer()
-        for batch_idx, train_batch in enumerate(training_data.train_loader, 1):
+        with TimeMeasure(epoch=e) as tm:
+            for batch_idx, train_batch in enumerate(training_data.train_loader, 1):
 
-            prompt = training_elems.prompt_model(batch_size=train_batch[0].size(
-                0), device=config.device)
+                prompt = training_elems.prompt_model(batch_size=train_batch[0].size(
+                    0), device=config.device)
 
-            need_to_optimize = ((batch_idx + 1) % config.gradient_accumulation_steps ==
-                                0) or (batch_idx + 1 == len(training_data.train_loader))
-            loss = train_step(training_elements=training_elems,
-                              config=config, train_batch=train_batch,
-                              batch_idx=batch_idx, need_to_optimize=need_to_optimize,
-                              prompt=prompt)
+                need_to_optimize = ((batch_idx + 1) % config.gradient_accumulation_steps ==
+                                    0) or (batch_idx + 1 == len(training_data.train_loader))
+                loss = train_step(training_elements=training_elems,
+                                config=config, train_batch=train_batch,
+                                batch_idx=batch_idx, need_to_optimize=need_to_optimize,
+                                prompt=prompt)
 
-            losses.append(loss)
+                losses.append(loss)
 
-            if len(losses) > 5:
-                break
-
-        end = timer()
+                # if len(losses) > 5:
+                #     break
 
         loss = sum(losses)/len(losses)
 
         print(f'{loss=}')
-
-        elapsed_time = str(timedelta(seconds=end-start))
-
-        print(f'{e} took ', elapsed_time)
-
-        wandb.log({'epoch': e, 'elapsed_time': elapsed_time})
 
         best_em_score = validate(training_elems, training_data, config,
                                  e, sum(losses)/len(losses),
