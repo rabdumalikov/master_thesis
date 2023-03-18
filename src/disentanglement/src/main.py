@@ -53,10 +53,12 @@ def main():
         # set the wandb project where this run will be logged
         project="MasterThesis",
         id=str(args.process_id),
-        name=f'T5_{args.model_name}-{args.tuning}-{args.process_id}',
+        name=f'T5_{args.model_name}-{args.tuning}-{args.process_id}(id)',
         # track hyperparameters and run metadata
         config=vars(config)
     )
+
+    print(f'Arguments: {args}')
 
     if args.tuning == 'ftuning':
         import t5_ptuning

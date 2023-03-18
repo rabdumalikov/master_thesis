@@ -9,9 +9,9 @@ import pandas as pd
 
 from pynvml import *
 from tqdm import tqdm
-from typing import Tuple
 from evaluate import load
 from datetime import timedelta
+from typing import Tuple, List, Dict
 from timeit import default_timer as timer
 from torch.cuda.amp import autocast, GradScaler
 from transformers import T5Tokenizer, T5ForConditionalGeneration
@@ -27,11 +27,11 @@ class TimeMeasure:
         return self
 
     def __exit__(self, type, value, traceback):
-        elapsed_time = timedelta(seconds=timer()-start)
+        elapsed_time = timedelta(seconds=timer()-self.start)
 
         print(f'Epoch={self.epoch} took {elapsed_time}')
 
-        wandb.log({'epoch': e, 'elapsed_time': elapsed_time.total_seconds()})
+        wandb.log({'epoch': self.epoch, 'elapsed_time': elapsed_time.total_seconds()})
 
 class TrainingConfig:
     def __init__(self, model_name: str, num_gpus: int,
@@ -58,8 +58,13 @@ class TrainingConfig:
 
 
 class TrainingData:
-    def __init__(self, config: TrainingConfig, tokenizer: T5Tokenizer, closure=None):
-        train_set, val_set, test_set = get_data(config.experiment_id)
+    def __init__(self, config: TrainingConfig, tokenizer: T5Tokenizer, closure=None, 
+                 allowed_test_sets: List[int] = ['f', 'cf', 'a(e)', 'a(r)']):
+
+        test_mapping = {'factual': 'f', 'counterfactual': 'cf', 
+            'closed_book': 'a(e)', 'random_context': 'a(r)' }
+
+        train_set, val_set, test_set = get_data(config.experiment_id, test_mapping)
 
         print(
             f'TrainingData: {len(train_set)=} {len(val_set)=} {len(test_set)=}')
@@ -68,9 +73,14 @@ class TrainingData:
             inp, tokenizer, closure), batch_size=config.batch_size, num_workers=4, pin_memory=True)
         self.val_loader = DataLoader(PandasDataset(val_set), collate_fn=lambda inp: collate_fn(
             inp, tokenizer, closure), batch_size=config.eval_batch_size, num_workers=4, pin_memory=True)
-        self.test_loader = DataLoader(PandasDataset(test_set), collate_fn=lambda inp: collate_fn(
-            inp, tokenizer, closure), batch_size=config.eval_batch_size, num_workers=4, pin_memory=True)
 
+        self.test_loaders = {}
+        for k in test_set:
+            if k not in allowed_test_sets:
+                continue
+
+            self.test_loaders[k] = DataLoader(PandasDataset(test_set[k]), collate_fn=lambda inp: collate_fn(
+                inp, tokenizer, closure), batch_size=config.eval_batch_size, num_workers=4, pin_memory=True)
 
 class TrainingElements:
     def __init__(self, model: T5ForConditionalGeneration, tokenizer: T5Tokenizer, scaler: GradScaler, optimizer, prompt_model = None):
@@ -79,6 +89,29 @@ class TrainingElements:
         self.scaler = scaler
         self.optimizer = optimizer( prompt_model if prompt_model is not None else model)
         self.prompt_model = prompt_model
+
+class PandasDataset(Dataset):
+    def __init__(self, dataframe):
+        self.dataframe = dataframe
+
+    def __len__(self):
+        return len(self.dataframe)
+
+    def __getitem__(self, index):
+        return self.dataframe.iloc[index]
+
+class DictDataset(Dataset):
+    def __init__(self, dic):
+        self.dic = dic
+
+    def __len__(self):
+        return len(self.dic[self.dic.keys()[0]])
+
+    def __getitem__(self, index):
+        output = []
+        for k in self.dic:
+            output.append( self.dic[k][index] )
+        return output
 
 def get_number_of_epochs(epochs: int) -> int:
     return epochs  # math.ceil(50000 / (len(train_set)//32))
@@ -114,24 +147,27 @@ def _read_tar_gz_context(filepath: str) -> pd.DataFrame:
         return pd.read_csv(csv_file)
 
 
-def get_data(experiment_id: int) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def get_data(experiment_id: int, mapping: Dict[str,str]) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
 
     train_filepath, val_filepath, test_filepath = _get_data_path_for(
         experiment_id)
 
-    # obtaining test data
-    test_set = _read_tar_gz_context(test_filepath)
-
-    test_factual = test_set[test_set['type'] == 'factual']
-    test_counterfactual = test_set[test_set['type'] == 'counterfactual']
-
-    test_factual.reset_index(drop=True, inplace=True)
-    test_counterfactual.reset_index(drop=True, inplace=True)
-
     # obtaining train data
     train_set = _read_tar_gz_context(train_filepath)
 
-    return train_set, test_factual, test_counterfactual
+    # obtaining validation data
+    val_set = _read_tar_gz_context(val_filepath)
+
+    # obtaining test data
+    test_set = _read_tar_gz_context(test_filepath)
+
+    test_sets = {}
+    for k in mapping:
+        k_test = test_set[test_set['type'] == k]
+        k_test.reset_index(drop=True, inplace=True)
+        test_sets[mapping[k]] = k_test
+    
+    return train_set, val_set, test_sets
 
 
 def get_model_name(short_name: str) -> str:
@@ -212,21 +248,6 @@ def save_model(training_elements: TrainingElements, em_score: float, loss: float
     training_elements.tokenizer.save_pretrained(
         f"{checkpoint_path}/")
 
-    # training_elements.model.save_pretrained(
-    #     f"{folder}/model_{e}_{str(loss)}_{round(em_score,3)}")
-
-
-class PandasDataset(Dataset):
-    def __init__(self, dataframe):
-        self.dataframe = dataframe
-
-    def __len__(self):
-        return len(self.dataframe)
-
-    def __getitem__(self, index):
-        return self.dataframe.iloc[index]
-
-
 @torch.no_grad()
 def evaluate(training_elements: TrainingElements, config: TrainingConfig,
              data_loader: DataLoader,
@@ -292,22 +313,25 @@ def validate(training_elements: TrainingElements, training_data: TrainingData,
     if current_epoch % training_config.evaluation_every != 0:
         return
 
-    exact_match_acc = evaluate(
-        training_elements, training_config, training_data.test_loader, verbose, **kwargs)
+    for key in training_data.test_loaders:
+        loader = training_data.test_loaders[key]
 
-    wandb.log({'epoch': current_epoch,
-              'loss': loss, 'em_acc': exact_match_acc})
+        exact_match_acc = evaluate(
+            training_elements, training_config, loader, verbose, **kwargs)
 
-    print(f'\te={current_epoch}, {exact_match_acc=}')
+        wandb.log({'epoch': current_epoch,
+                'loss': loss, f'{key}_EM_acc': exact_match_acc})
 
-    if exact_match_acc > best_em_score:
-        best_em_score = exact_match_acc
+        print(f'\t{key=} e={current_epoch}, {exact_match_acc=}')
 
-        print(
-            f'Saving model at e={current_epoch} with bestEM={best_em_score}')
+        if exact_match_acc > best_em_score:
+            best_em_score = exact_match_acc
 
-        save_model(training_elements, exact_match_acc, loss,
-                   current_epoch, training_config.model_name, folder)
+            print(
+                f'Saving {key} model at e={current_epoch} with bestEM={best_em_score}')
+
+            save_model(training_elements, exact_match_acc, loss,
+                    current_epoch, training_config.model_name, folder)
 
     return best_em_score
 

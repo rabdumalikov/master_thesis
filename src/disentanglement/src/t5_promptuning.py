@@ -5,9 +5,9 @@ import common_utils
 import torch
 import torch.nn as nn
 
-from timeit import default_timer as timer
+from utils import *
+from transformers.optimization import Adafactor
 from transformers import T5Tokenizer, T5ForConditionalGeneration
-
 
 class PromptTuning(nn.Module):
     """
@@ -42,7 +42,7 @@ class PromptTuning(nn.Module):
 def create_T5_model(config: TrainingConfig, tokenizer: T5Tokenizer) -> T5ForConditionalGeneration:
 
     model = T5ForConditionalGeneration.from_pretrained(
-        config.model_name)#, device_map='balanced')
+        'google/t5-xl-lm-adapt')#, device_map='balanced')
     model.resize_token_embeddings(len(tokenizer))
     model.gradient_checkpointing_enable()
     model.config.use_cache = False
@@ -62,9 +62,19 @@ def create_T5_model(config: TrainingConfig, tokenizer: T5Tokenizer) -> T5ForCond
 
     return model, prompt_model
 
+def create_optimizer(model: T5ForConditionalGeneration) -> Adafactor:
+    return Adafactor(
+        model.parameters(),
+        lr=3e-1,
+        beta1=0.8,
+        weight_decay=1e-5,
+        relative_step=False,
+        scale_parameter=False,
+        warmup_init=False,
+    )
 
 def create_stuff(config: TrainingConfig):
-    tokenizer = common_utils.create_tokenizer(model_name=config.model_name)
+    tokenizer = common_utils.create_tokenizer(model_name='google/t5-xl-lm-adapt')
 
     print_gpu_utilization()
 
@@ -72,12 +82,12 @@ def create_stuff(config: TrainingConfig):
 
     training_elems = TrainingElements(
         model, tokenizer, torch.cuda.amp.GradScaler(),
-        lambda model: common_utils.create_optimizer(model),
+        lambda model: create_optimizer(model),
         prompt_model) 
 
     print_gpu_utilization()
 
-    training_data = TrainingData(config=config, tokenizer=tokenizer)
+    training_data = TrainingData(config=config, tokenizer=tokenizer, allowed_test_sets=['cf'])
 
     return training_elems, training_data
 
@@ -112,8 +122,8 @@ def run(config: TrainingConfig):
 
                 losses.append(loss)
 
-                # if len(losses) > 5:
-                #     break
+                if len(losses) > 5:
+                    break
 
         loss = sum(losses)/len(losses)
 
