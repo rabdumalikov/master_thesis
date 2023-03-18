@@ -59,7 +59,7 @@ def create_stuff(config: TrainingConfig, adapter_name: str):
 
 
 def run(config: TrainingConfig) -> float:
-    adapter_name = 'prefix_tuning'  # bottleneck_adapter
+    adapter_name = 'lora'  # bottleneck_adapter
 
     training_elems, training_data = create_stuff(config, adapter_name)
 
@@ -87,11 +87,15 @@ def run(config: TrainingConfig) -> float:
             losses.append(loss)
         end = timer()
 
-        print(f'loss={sum(losses)/len(losses)}')
+        loss = sum(losses)/len(losses)
 
-        print(f'{e} took ', timedelta(seconds=end-start))
+        print(f'{loss=}')
 
-        wandb.log({'epoch': e, 'elapsed_time': timedelta(seconds=end-start)})
+        elapsed_time = str(timedelta(seconds=end-start))
+
+        print(f'{e} took ', elapsed_time)
+
+        wandb.log({'epoch': e, 'elapsed_time': elapsed_time})
 
         best_em_score = validate(training_elems, training_data, config,
                                  e, sum(losses)/len(losses), config.model_saving_folder, best_em_score)

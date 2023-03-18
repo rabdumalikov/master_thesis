@@ -1,3 +1,4 @@
+import os
 import gzip
 import wandb
 import torch
@@ -54,12 +55,12 @@ class TrainingData:
 
 
 class TrainingElements:
-    def __init__(self, model: T5ForConditionalGeneration, tokenizer: T5Tokenizer, scaler: GradScaler, optimizer):
+    def __init__(self, model: T5ForConditionalGeneration, tokenizer: T5Tokenizer, scaler: GradScaler, optimizer, prompt_model = None):
         self.model = model
         self.tokenizer = tokenizer
         self.scaler = scaler
-        self.optimizer = optimizer(model)
-
+        self.optimizer = optimizer( prompt_model if prompt_model is not None else model)
+        self.prompt_model = prompt_model
 
 def get_number_of_epochs(epochs: int) -> int:
     return epochs  # math.ceil(50000 / (len(train_set)//32))
@@ -181,8 +182,20 @@ def save_model(training_elements: TrainingElements, em_score: float, loss: float
 
     print(em_score, ext, loss, e, model_name)
 
+    checkpoint_path = f'{folder}/checkpoint_{e}'
+    
+    os.mkdir(checkpoint_path)
+
+    with open(f'{checkpoint_path}/results.txt', 'w') as f:
+        f.write(f'epoch={e}\nloss={loss}\nem={round(em_score,3)}')
+
     training_elements.model.save_pretrained(
-        f"{folder}/model_{e}_{str(loss)}_{round(em_score,3)}")
+        f"{checkpoint_path}/")
+    training_elements.tokenizer.save_pretrained(
+        f"{checkpoint_path}/")
+
+    # training_elements.model.save_pretrained(
+    #     f"{folder}/model_{e}_{str(loss)}_{round(em_score,3)}")
 
 
 class PandasDataset(Dataset):
@@ -198,7 +211,7 @@ class PandasDataset(Dataset):
 
 @torch.no_grad()
 def evaluate(training_elements: TrainingElements, config: TrainingConfig,
-             device: torch.device, data_loader: DataLoader,
+             data_loader: DataLoader,
              verbose: bool = False, **kwargs) -> float:
 
     print("Evaluating...")
@@ -212,13 +225,19 @@ def evaluate(training_elements: TrainingElements, config: TrainingConfig,
     all_questions = []
 
     for batch in tqdm(data_loader):
-        src_ids = batch[0].to(device)
-        src_am = batch[1].to(device)
-        trg_ids = batch[2].to(device)
+        src_ids = batch[0].to(config.device)
+        src_am = batch[1].to(config.device)
+        trg_ids = batch[2].to(config.device)
         questions = batch[4]
 
         target = training_elements.tokenizer.batch_decode(
             trg_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
+
+        kwargs = {}
+        if training_elements.prompt_model is not None:
+            prompt = training_elements.prompt_model(batch_size=batch[0].size(
+                    0), device=config.device)
+            kwargs['prompt'] = prompt
 
         with autocast(dtype=torch.bfloat16, enabled=config.FP16):
             generated_ids = training_elements.model.generate(
@@ -248,7 +267,7 @@ def evaluate(training_elements: TrainingElements, config: TrainingConfig,
 
 
 def validate(training_elements: TrainingElements, training_data: TrainingData,
-             training_config: TrainingConfig, current_epoch: int, loss: float, folder: str, best_em_score: float, **kwargs):
+             training_config: TrainingConfig, current_epoch: int, loss: float, folder: str, best_em_score: float, verbose: bool = False, **kwargs):
 
     torch.cuda.empty_cache()
 
@@ -256,7 +275,7 @@ def validate(training_elements: TrainingElements, training_data: TrainingData,
         return
 
     exact_match_acc = evaluate(
-        training_elements, training_config.device, training_data.test_loader, **kwargs)
+        training_elements, training_config, training_data.test_loader, verbose, **kwargs)
 
     wandb.log({'epoch': current_epoch,
               'loss': loss, 'em_acc': exact_match_acc})
@@ -269,7 +288,7 @@ def validate(training_elements: TrainingElements, training_data: TrainingData,
         print(
             f'Saving model at e={current_epoch} with bestEM={best_em_score}')
 
-        save_model(training_elements.model, exact_match_acc, loss,
+        save_model(training_elements, exact_match_acc, loss,
                    current_epoch, training_config.model_name, folder)
 
     return best_em_score

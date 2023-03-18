@@ -50,30 +50,6 @@ def run(config: TrainingConfig):
     print("Training started...")
     print(f'{config.model_name=} {config.batch_size=} {config.epochs=}')
 
-    best_em_score = 0.0
-    for e in range(1, config.epochs):
-
-        training_elems.model.train()
-        torch.cuda.empty_cache()
-
-        losses = []
-
-        start = timer()
-        for batch_idx, train_batch in enumerate(training_data.train_loader, 1):
-            need_to_optimize = ((batch_idx + 1) % config.gradient_accumulation_steps ==
-                                0) or (batch_idx + 1 == len(training_data.train_loader))
-            loss = train_step(training_elements=training_elems,
-                              config=config, train_batch=train_batch,
-                              batch_idx=batch_idx, need_to_optimize=need_to_optimize)
-
-            losses.append(loss)
-        end = timer()
-
-        print(f'loss={sum(losses)/len(losses)}')
-
-        print(f'{e} took ', timedelta(seconds=end-start))
-
-        wandb.log({'epoch': e, 'elapsed_time': timedelta(seconds=end-start)})
-
-        best_em_score = validate(training_elems, training_data, config,
-                                 e, sum(losses)/len(losses), config.model_saving_folder, best_em_score)
+    torch.cuda.empty_cache()
+    
+    return evaluate(training_elems, config, training_data.test_loader, verbose=True)

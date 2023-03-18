@@ -15,7 +15,7 @@ def create_T5_model(model_name: str, tokenizer: T5Tokenizer) -> T5ForConditional
     model.resize_token_embeddings(len(tokenizer))
     model.gradient_checkpointing_enable()
     model.config.use_cache = False
-
+    
     print("Finished loading model")
 
     return model
@@ -62,13 +62,20 @@ def run(config: TrainingConfig):
                               batch_idx=batch_idx, need_to_optimize=need_to_optimize)
 
             losses.append(loss)
+
         end = timer()
 
-        print(f'loss={sum(losses)/len(losses)}')
+        loss = sum(losses)/len(losses)
 
-        print(f'{e} took ', timedelta(seconds=end-start))
+        print(f'{loss=}')
 
-        wandb.log({'epoch': e, 'elapsed_time': timedelta(seconds=end-start)})
+        elapsed_time = str(timedelta(seconds=end-start))
+
+        print(f'{e} took ', elapsed_time)
+
+        wandb.log({'epoch': e, 'elapsed_time': elapsed_time})
 
         best_em_score = validate(training_elems, training_data, config,
-                                 e, sum(losses)/len(losses), config.model_saving_folder, best_em_score)
+                                 e, loss, config.model_saving_folder, best_em_score)
+
+    return best_em_score

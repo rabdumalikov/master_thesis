@@ -12,34 +12,34 @@ from transformers import T5Tokenizer, T5ForConditionalGeneration
 
 
 class PromptTuning(nn.Module):
-    def __init__(self, wte: nn.Embedding, pretrained_config, prompt_len=20, hidden_dim=256):
+    """
+    """
+    def __init__(self, pretrained_config, prompt_len=20, hidden_dim=256):
         super().__init__()
-
+        
         # Config of Pre-Trained LM
-        self.pretrained_config = pretrained_config
-
-        self.wte = wte
-
+        self.pretrained_config=pretrained_config
+        
         # torch.tensor([0, 1, 2, .. , prompt_len-1])
-        self.pre_prompt = torch.arange(prompt_len)
+        self.pre_prompt=torch.arange(prompt_len)
         # Embedding
-        self.embd = nn.Embedding(
-            num_embeddings=prompt_len, embedding_dim=pretrained_config.d_model)
+        self.embd=nn.Embedding(num_embeddings=prompt_len, embedding_dim=pretrained_config.d_model)
         # Reparameterization
-        self.reparam = nn.Sequential(
+        self.reparam=nn.Sequential(
             nn.Linear(pretrained_config.d_model, hidden_dim),
             nn.Tanh(),
             nn.Linear(hidden_dim, pretrained_config.d_model)
         )
-
-    def forward(self, tokens, batch_size, device):
+        
+    def forward(self, batch_size, device):
         # Shape: batch_size, prompt_len
-        prompt = self.pre_prompt.unsqueeze(0).expand(batch_size, -1).to(device)
+        prompt=self.pre_prompt.unsqueeze(0).expand(batch_size, -1).to(device)
         # Shape: batch_size, prompt_len, d_model
-        prompt = self.embd(prompt)
+        prompt=self.embd(prompt)
         # Shape: batch_size, prompt_len, d_model
-        prompt = self.reparam(prompt)
-
+        prompt=self.reparam(prompt)
+        
+        return prompt
 
 def create_T5_model(config: TrainingConfig, tokenizer: T5Tokenizer) -> T5ForConditionalGeneration:
 
@@ -55,7 +55,7 @@ def create_T5_model(config: TrainingConfig, tokenizer: T5Tokenizer) -> T5ForCond
 
     # Prompt Config
     prompt_len = 100
-    hidden_dim = 768
+    hidden_dim = 512
     prompt_model = PromptTuning(pretrained_config=model.config,
                                 prompt_len=prompt_len, hidden_dim=hidden_dim).to(config.device)
 
@@ -69,22 +69,23 @@ def create_stuff(config: TrainingConfig):
 
     print_gpu_utilization()
 
-    model, prompt_model = create_T5_model(config.model_name, tokenizer)
+    model, prompt_model = create_T5_model(config, tokenizer)
 
     training_elems = TrainingElements(
         model, tokenizer, torch.cuda.amp.GradScaler(),
-        lambda model: common_utils.create_optimizer(model))
+        lambda model: common_utils.create_optimizer(model),
+        prompt_model) 
 
     print_gpu_utilization()
 
     training_data = TrainingData(config=config, tokenizer=tokenizer)
 
-    return training_elems, training_data, prompt_model
+    return training_elems, training_data
 
 
 def run(config: TrainingConfig):
 
-    training_elems, training_data, prompt_model = create_stuff(config)
+    training_elems, training_data = create_stuff(config)
 
     print("Training started...")
     print(f'{config.model_name=} {config.batch_size=} {config.epochs=}')
@@ -100,7 +101,7 @@ def run(config: TrainingConfig):
         start = timer()
         for batch_idx, train_batch in enumerate(training_data.train_loader, 1):
 
-            prompt = prompt_model(batch_size=train_batch[0].size(
+            prompt = training_elems.prompt_model(batch_size=train_batch[0].size(
                 0), device=config.device)
 
             need_to_optimize = ((batch_idx + 1) % config.gradient_accumulation_steps ==
@@ -111,15 +112,24 @@ def run(config: TrainingConfig):
                               prompt=prompt)
 
             losses.append(loss)
+
+            if len(losses) > 5:
+                break
+
         end = timer()
 
-        print(f'loss={sum(losses)/len(losses)}')
+        loss = sum(losses)/len(losses)
 
-        print(f'{e} took ', timedelta(seconds=end-start))
+        print(f'{loss=}')
 
-        wandb.log({'epoch': e, 'elapsed_time': timedelta(seconds=end-start)})
+        elapsed_time = str(timedelta(seconds=end-start))
+
+        print(f'{e} took ', elapsed_time)
+
+        wandb.log({'epoch': e, 'elapsed_time': elapsed_time})
 
         best_em_score = validate(training_elems, training_data, config,
                                  e, sum(losses)/len(losses),
                                  config.model_saving_folder,
-                                 best_em_score, prompt=prompt)
+                                 best_em_score)
+    return best_em_score
