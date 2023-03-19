@@ -5,6 +5,7 @@ import common_utils
 from utils import *
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 
+
 def get_aliases():
     return ['adversarial_training']
 
@@ -16,7 +17,7 @@ def create_T5_model(model_name: str, tokenizer: T5Tokenizer) -> T5ForConditional
     model.resize_token_embeddings(len(tokenizer))
     model.gradient_checkpointing_enable()
     model.config.use_cache = False
-    
+
     print("Finished loading model")
 
     return model
@@ -48,11 +49,12 @@ def train_step(training_elements: TrainingElements, config: TrainingConfig,
     test_src_am = test_batch[1].to(0)
     test_trg_ids = test_batch[2].to(0)
     test_lm_labels = test_trg_ids.clone().detach()
-    test_lm_labels[test_trg_ids == training_elements.tokenizer.pad_token_id] = -100
+    test_lm_labels[test_trg_ids ==
+                   training_elements.tokenizer.pad_token_id] = -100
 
     # target = training_elements.tokenizer.batch_decode(
     #     test_trg_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
-    
+
     # print(f'TestCF: {target}')
 
     src_ids = train_batch[0].to(0)
@@ -111,7 +113,7 @@ def run(config: TrainingConfig, alias: str):
 
         losses = []
 
-        with TimeMeasure(epoch=e) as tm:
+        with TimeMeasure(epoch=e):
             for batch_idx, train_batch in enumerate(training_data.train_loader, 1):
                 need_to_optimize = ((batch_idx + 1) % config.gradient_accumulation_steps ==
                                     0) or (batch_idx + 1 == len(training_data.train_loader))
@@ -122,13 +124,10 @@ def run(config: TrainingConfig, alias: str):
                     break
 
                 loss = train_step(training_elements=training_elems,
-                            config=config, train_batch=train_batch, test_batch=test_batch,
-                            batch_idx=batch_idx, need_to_optimize=need_to_optimize)
-                    
-                losses.append(loss)
+                                  config=config, train_batch=train_batch, test_batch=test_batch,
+                                  batch_idx=batch_idx, need_to_optimize=need_to_optimize)
 
-                # if len(losses) > 10:
-                #     break
+                losses.append(loss)
 
         loss = sum(losses)/len(losses)
 

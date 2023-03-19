@@ -9,43 +9,48 @@ from utils import *
 from transformers.optimization import Adafactor
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 
+
 class PromptTuning(nn.Module):
     """
     """
+
     def __init__(self, pretrained_config, prompt_len=20, hidden_dim=256):
         super().__init__()
-        
+
         # Config of Pre-Trained LM
-        self.pretrained_config=pretrained_config
-        
+        self.pretrained_config = pretrained_config
+
         # torch.tensor([0, 1, 2, .. , prompt_len-1])
-        self.pre_prompt=torch.arange(prompt_len)
+        self.pre_prompt = torch.arange(prompt_len)
         # Embedding
-        self.embd=nn.Embedding(num_embeddings=prompt_len, embedding_dim=pretrained_config.d_model)
+        self.embd = nn.Embedding(
+            num_embeddings=prompt_len, embedding_dim=pretrained_config.d_model)
         # Reparameterization
-        self.reparam=nn.Sequential(
+        self.reparam = nn.Sequential(
             nn.Linear(pretrained_config.d_model, hidden_dim),
             nn.Tanh(),
             nn.Linear(hidden_dim, pretrained_config.d_model)
         )
-        
+
     def forward(self, batch_size, device):
         # Shape: batch_size, prompt_len
-        prompt=self.pre_prompt.unsqueeze(0).expand(batch_size, -1).to(device)
+        prompt = self.pre_prompt.unsqueeze(0).expand(batch_size, -1).to(device)
         # Shape: batch_size, prompt_len, d_model
-        prompt=self.embd(prompt)
+        prompt = self.embd(prompt)
         # Shape: batch_size, prompt_len, d_model
-        prompt=self.reparam(prompt)
-        
+        prompt = self.reparam(prompt)
+
         return prompt
+
 
 def get_aliases():
     return ['promptuning']
 
+
 def create_T5_model(config: TrainingConfig, tokenizer: T5Tokenizer) -> T5ForConditionalGeneration:
 
     model = T5ForConditionalGeneration.from_pretrained(
-        'google/t5-xl-lm-adapt')#, device_map='balanced')
+        'google/t5-xl-lm-adapt')  # , device_map='balanced')
     model.resize_token_embeddings(len(tokenizer))
     model.gradient_checkpointing_enable()
     model.config.use_cache = False
@@ -57,11 +62,13 @@ def create_T5_model(config: TrainingConfig, tokenizer: T5Tokenizer) -> T5ForCond
 
     # Prompt Config
     prompt_len = 100
-    prompt_model = PromptTuning(pretrained_config=model.config, prompt_len=prompt_len).to(config.device)
+    prompt_model = PromptTuning(
+        pretrained_config=model.config, prompt_len=prompt_len).to(config.device)
 
     print("Finished loading model")
 
     return model, prompt_model
+
 
 def create_optimizer(model: T5ForConditionalGeneration) -> Adafactor:
     return Adafactor(
@@ -74,8 +81,10 @@ def create_optimizer(model: T5ForConditionalGeneration) -> Adafactor:
         warmup_init=False,
     )
 
+
 def create_stuff(config: TrainingConfig):
-    tokenizer = common_utils.create_tokenizer(model_name='google/t5-xl-lm-adapt')
+    tokenizer = common_utils.create_tokenizer(
+        model_name='google/t5-xl-lm-adapt')
 
     print_gpu_utilization()
 
@@ -84,11 +93,12 @@ def create_stuff(config: TrainingConfig):
     training_elems = TrainingElements(
         model, tokenizer, torch.cuda.amp.GradScaler(),
         lambda model: create_optimizer(model),
-        prompt_model) 
+        prompt_model)
 
     print_gpu_utilization()
 
-    training_data = TrainingData(config=config, tokenizer=tokenizer, allowed_test_sets=['cf'])
+    training_data = TrainingData(
+        config=config, tokenizer=tokenizer, allowed_test_sets=['cf'])
 
     return training_elems, training_data
 
@@ -108,7 +118,7 @@ def run(config: TrainingConfig, alias: str):
 
         losses = []
 
-        with TimeMeasure(epoch=e) as tm:
+        with TimeMeasure(epoch=e):
             for batch_idx, train_batch in enumerate(training_data.train_loader, 1):
 
                 prompt = training_elems.prompt_model(batch_size=train_batch[0].size(
@@ -117,9 +127,9 @@ def run(config: TrainingConfig, alias: str):
                 need_to_optimize = ((batch_idx + 1) % config.gradient_accumulation_steps ==
                                     0) or (batch_idx + 1 == len(training_data.train_loader))
                 loss = train_step(training_elements=training_elems,
-                                config=config, train_batch=train_batch,
-                                batch_idx=batch_idx, need_to_optimize=need_to_optimize,
-                                prompt=prompt)
+                                  config=config, train_batch=train_batch,
+                                  batch_idx=batch_idx, need_to_optimize=need_to_optimize,
+                                  prompt=prompt)
 
                 losses.append(loss)
 

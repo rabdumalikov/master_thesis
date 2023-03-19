@@ -9,7 +9,8 @@ from transformers.adapters import PrefixTuningConfig, AdapterConfig, LoRAConfig
 
 
 def get_aliases():
-    return ['prefix_tuning', 'bottleneck_adapter', 'lora' ]
+    return ['prefix_tuning', 'bottleneck_adapter', 'lora']
+
 
 def create_pef_config(adapter_name: str):
 
@@ -17,7 +18,7 @@ def create_pef_config(adapter_name: str):
         return PrefixTuningConfig(flat=False, prefix_length=1)
     elif adapter_name == 'bottleneck_adapter':
         return AdapterConfig(mh_adapter=True, output_adapter=True,
-                               reduction_factor=16, non_linearity="relu")
+                             reduction_factor=16, non_linearity="relu")
     elif adapter_name == 'lora':
         return LoRAConfig(r=8, alpha=16)
     else:
@@ -55,6 +56,7 @@ def create_stuff(config: TrainingConfig, adapter_name: str):
 
     return training_elems, training_data
 
+
 def create_optimizer(model: T5ForConditionalGeneration) -> Adafactor:
     return Adafactor(
         model.parameters(),
@@ -91,13 +93,13 @@ def run(config: TrainingConfig, adapter_name: str) -> float:
 
         losses = []
 
-        with TimeMeasure(epoch=e) as tm:
+        with TimeMeasure(epoch=e):
             for batch_idx, train_batch in enumerate(training_data.train_loader, 1):
                 need_to_optimize = ((batch_idx + 1) % config.gradient_accumulation_steps ==
                                     0) or (batch_idx + 1 == len(training_data.train_loader))
                 loss = train_step(training_elements=training_elems,
-                                config=config, train_batch=train_batch,
-                                batch_idx=batch_idx, need_to_optimize=need_to_optimize)
+                                  config=config, train_batch=train_batch,
+                                  batch_idx=batch_idx, need_to_optimize=need_to_optimize)
 
                 losses.append(loss)
 

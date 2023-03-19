@@ -5,8 +5,10 @@ import common_utils
 from utils import *
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 
+
 def get_aliases():
     return ['finetuning']
+
 
 def create_T5_model(model_name: str, tokenizer: T5Tokenizer) -> T5ForConditionalGeneration:
 
@@ -15,7 +17,7 @@ def create_T5_model(model_name: str, tokenizer: T5Tokenizer) -> T5ForConditional
     model.resize_token_embeddings(len(tokenizer))
     model.gradient_checkpointing_enable()
     model.config.use_cache = False
-    
+
     print("Finished loading model")
 
     return model
@@ -53,13 +55,13 @@ def run(config: TrainingConfig, alias: str):
 
         losses = []
 
-        with TimeMeasure(epoch=e) as tm:
+        with TimeMeasure(epoch=e):
             for batch_idx, train_batch in enumerate(training_data.train_loader, 1):
                 need_to_optimize = ((batch_idx + 1) % config.gradient_accumulation_steps ==
                                     0) or (batch_idx + 1 == len(training_data.train_loader))
                 loss = train_step(training_elements=training_elems,
-                                config=config, train_batch=train_batch,
-                                batch_idx=batch_idx, need_to_optimize=need_to_optimize)
+                                  config=config, train_batch=train_batch,
+                                  batch_idx=batch_idx, need_to_optimize=need_to_optimize)
 
                 losses.append(loss)
 

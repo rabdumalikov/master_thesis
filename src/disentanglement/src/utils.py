@@ -11,11 +11,12 @@ from pynvml import *
 from tqdm import tqdm
 from evaluate import load
 from datetime import timedelta
-from typing import Tuple, List, Dict
 from timeit import default_timer as timer
+from typing import Tuple, List, Dict, Optional
 from torch.cuda.amp import autocast, GradScaler
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 from torch.utils.data import DataLoader, Dataset, RandomSampler
+
 
 class TimeMeasure:
     def __init__(self, epoch: int):
@@ -31,14 +32,16 @@ class TimeMeasure:
 
         print(f'Epoch={self.epoch} took {elapsed_time}')
 
-        wandb.log({'epoch': self.epoch, 'epoch_duration(m)': (elapsed_time.total_seconds()%3600)//60 })
+        wandb.log({'epoch': self.epoch, 'epoch_duration(m)': (
+            elapsed_time.total_seconds()/60)})
+
 
 class TrainingConfig:
     def __init__(self, model_name: str, num_gpus: int,
                  gradient_accumulation_steps: int,
                  batch_size: int,
                  gpu_stat_every: int, evaluation_every: int, device: torch.device,
-                 experiment_id: int,
+                 dataset_type: str,
                  epochs: int,
                  model_saving_folder: str,
                  FP16: bool = False):
@@ -51,20 +54,21 @@ class TrainingConfig:
         self.evaluation_every = evaluation_every
         self.eval_batch_size = batch_size * 3
         self.device = device
-        self.experiment_id = experiment_id
+        self.dataset_type = dataset_type
         self.epochs = epochs
         self.FP16 = FP16
         self.model_saving_folder = model_saving_folder
 
 
 class TrainingData:
-    def __init__(self, config: TrainingConfig, 
-                allowed_test_sets: List[int] = ['f', 'cf', 'a(e)', 'a(r)'], **kwargs):
+    def __init__(self, config: TrainingConfig,
+                 allowed_test_sets: List[int] = ['f', 'cf', 'a(e)', 'a(r)'], **kwargs):
 
-        test_mapping = {'factual': 'f', 'counterfactual': 'cf', 
-            'closed_book': 'a(e)', 'random_context': 'a(r)' }
+        test_mapping = {'factual': 'f', 'counterfactual': 'cf',
+                        'closed_book': 'a(e)', 'random_context': 'a(r)'}
 
-        train_set, val_set, test_set = get_data(config.experiment_id, test_mapping)
+        train_set, val_set, test_set = get_data(
+            config.dataset_type, test_mapping)
 
         print(
             f'TrainingData: {len(train_set)=} {len(val_set)=} {len(test_set)=}')
@@ -78,20 +82,23 @@ class TrainingData:
         for k in test_set:
             if k not in allowed_test_sets:
                 continue
-            
-            sampler = RandomSampler(PandasDataset(test_set[k]), replacement=True)
+
+            sampler = RandomSampler(PandasDataset(
+                test_set[k]), replacement=True)
 
             self.test_loaders[k] = DataLoader(PandasDataset(test_set[k]), sampler=sampler, collate_fn=lambda inp: collate_fn(
                 inp, **kwargs), batch_size=config.eval_batch_size, num_workers=4, pin_memory=True)
 
 
 class TrainingElements:
-    def __init__(self, model: T5ForConditionalGeneration, tokenizer: T5Tokenizer, scaler: GradScaler, optimizer, prompt_model = None):
+    def __init__(self, model: T5ForConditionalGeneration, tokenizer: T5Tokenizer, scaler: GradScaler, optimizer, prompt_model=None):
         self.model = model
         self.tokenizer = tokenizer
         self.scaler = scaler
-        self.optimizer = optimizer( prompt_model if prompt_model is not None else model)
+        self.optimizer = optimizer(
+            prompt_model if prompt_model is not None else model)
         self.prompt_model = prompt_model
+
 
 class PandasDataset(Dataset):
     def __init__(self, dataframe):
@@ -103,6 +110,7 @@ class PandasDataset(Dataset):
     def __getitem__(self, index):
         return self.dataframe.iloc[index]
 
+
 class DictDataset(Dataset):
     def __init__(self, dic):
         self.dic = dic
@@ -113,8 +121,9 @@ class DictDataset(Dataset):
     def __getitem__(self, index):
         output = []
         for k in self.dic:
-            output.append( self.dic[k][index] )
+            output.append(self.dic[k][index])
         return output
+
 
 def get_number_of_epochs(epochs: int) -> int:
     return epochs  # math.ceil(50000 / (len(train_set)//32))
@@ -150,10 +159,10 @@ def _read_tar_gz_context(filepath: str) -> pd.DataFrame:
         return pd.read_csv(csv_file)
 
 
-def get_data(experiment_id: int, mapping: Dict[str,str]) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def get_data(dataset_type: str, mapping: Dict[str, str]) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
 
     train_filepath, val_filepath, test_filepath = _get_data_path_for(
-        experiment_id)
+        dataset_type)
 
     # obtaining train data
     train_set = _read_tar_gz_context(train_filepath)
@@ -169,7 +178,7 @@ def get_data(experiment_id: int, mapping: Dict[str,str]) -> Tuple[pd.DataFrame, 
         k_test = test_set[test_set['type'] == k]
         k_test.reset_index(drop=True, inplace=True)
         test_sets[mapping[k]] = k_test
-    
+
     return train_set, val_set, test_sets
 
 
@@ -183,31 +192,33 @@ def get_model_name(short_name: str) -> str:
 
     return names[short_name]
 
+# experiment id(or tuning method) correspond to choosen method like finetuning, adapters, lora, etc.
+# dataset id correspond to choosen dataset to train and test agaings like 'f', 'f+cf', 'f+a', etc.
 
-def _get_data_path_for(experiment_id: int) -> Tuple[str, str, str]:
+
+def _get_data_path_for(dataset_type: str) -> Tuple[str, str, str]:
 
     director = '../their_data/'
     Experiments = {
-        'exp1': ('(s) f - train.csv.tar.gz', '(s) f - val.csv.tar.gz', 'test_sets.csv.tar.gz'),
-        'exp2': ('(s) f+cf - train.csv.tar.gz', '(s) f+cf - val.csv.tar.gz', 'test_sets.csv.tar.gz'),
-        'exp3': ('(s) f+a - train.csv.tar.gz', '(s) f+a - val.csv.tar.gz', 'test_sets.csv.tar.gz'),
-        'exp4': ('(s) f+cf+a - train.csv.tar.gz', '(s) f+cf+a - val.csv.tar.gz', 'test_sets.csv.tar.gz')
+        's(f)': ('(s) f - train.csv.tar.gz', '(s) f - val.csv.tar.gz', 'test_sets.csv.tar.gz'),
+        's(f+cf)': ('(s) f+cf - train.csv.tar.gz', '(s) f+cf - val.csv.tar.gz', 'test_sets.csv.tar.gz'),
+        's(f+a)': ('(s) f+a - train.csv.tar.gz', '(s) f+a - val.csv.tar.gz', 'test_sets.csv.tar.gz'),
+        's(f+cf+a)': ('(s) f+cf+a - train.csv.tar.gz', '(s) f+cf+a - val.csv.tar.gz', 'test_sets.csv.tar.gz')
     }
 
-    train, val, test = Experiments[f'exp{experiment_id}']
+    train, val, test = Experiments[dataset_type]
 
     return director+train, director+val, director+test
 
-def get_experiment_name(experiment_id: int) -> str:
 
-    Names = {
-        'exp1': 's(f)',
-        'exp2': 's(f+cf)',
-        'exp3': 's(f+a)',
-        'exp4': 's(f+cf+a)'
+def get_DisentQA_results(dataset_type: str) -> Optional[float]:
+
+    DisentQAResults = {
+        's(f)':     {'f': 76.34, 'cf': 67.84},
+        's(f+cf)':  {'f': 75.75, 'cf': 76.04},
     }
-    return Names[experiment_id]
 
+    return DisentQAResults[dataset_type] if dataset_type in DisentQAResults else None
 
 
 def collate_fn(input: pd.DataFrame, tokenizer: T5Tokenizer, closure=None, postprocessing=None):
@@ -230,7 +241,7 @@ def collate_fn(input: pd.DataFrame, tokenizer: T5Tokenizer, closure=None, postpr
                             return_tensors='pt',     # Return pytorch tensors.
                             )
     if postprocessing is not None:
-        source_dict = postprocessing( source_dict )
+        source_dict = postprocessing(source_dict)
 
     answers = input['contextual_answer'].values.tolist()
 
@@ -253,10 +264,10 @@ def save_model(training_elements: TrainingElements, em_score: float, loss: float
     print(em_score, ext, loss, e, model_name)
 
     checkpoint_path = f'{folder}/checkpoint_{e}'
-    
+
     if not os.path.exists(checkpoint_path):
         os.makedirs(checkpoint_path)
-    
+
     with open(f'{checkpoint_path}/results.txt', 'w') as f:
         f.write(f'epoch={e}\nloss={loss}\nem={round(em_score,3)}')
 
@@ -264,6 +275,7 @@ def save_model(training_elements: TrainingElements, em_score: float, loss: float
         f"{checkpoint_path}/")
     training_elements.tokenizer.save_pretrained(
         f"{checkpoint_path}/")
+
 
 @torch.no_grad()
 def evaluate(training_elements: TrainingElements, config: TrainingConfig,
@@ -292,7 +304,7 @@ def evaluate(training_elements: TrainingElements, config: TrainingConfig,
         kwargs = {}
         if training_elements.prompt_model is not None:
             prompt = training_elements.prompt_model(batch_size=batch[0].size(
-                    0), device=config.device)
+                0), device=config.device)
             kwargs['prompt'] = prompt
 
         with autocast(dtype=torch.bfloat16, enabled=config.FP16):
@@ -323,7 +335,7 @@ def evaluate(training_elements: TrainingElements, config: TrainingConfig,
 
 
 def validate(training_elements: TrainingElements, training_data: TrainingData,
-             training_config: TrainingConfig, current_epoch: int, loss: float, 
+             training_config: TrainingConfig, current_epoch: int, loss: float,
              folder: str, best_em_score: float, verbose: bool = False, **kwargs):
 
     torch.cuda.empty_cache()
@@ -338,7 +350,7 @@ def validate(training_elements: TrainingElements, training_data: TrainingData,
             training_elements, training_config, loader, verbose, **kwargs)
 
         wandb.log({'epoch': current_epoch,
-                'loss': loss, f'{key}_EM_acc': exact_match_acc})
+                   'loss': loss, f'{key}_EM_acc': exact_match_acc})
 
         print(f'\t{key=} e={current_epoch}, {exact_match_acc=}')
 
@@ -349,7 +361,7 @@ def validate(training_elements: TrainingElements, training_data: TrainingData,
                 f'Saving {key} model at e={current_epoch} with bestEM={best_em_score}')
 
             save_model(training_elements, exact_match_acc, loss,
-                    current_epoch, training_config.model_name, folder)
+                       current_epoch, training_config.model_name, folder)
 
     return best_em_score
 
