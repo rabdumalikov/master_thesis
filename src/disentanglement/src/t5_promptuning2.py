@@ -43,6 +43,9 @@ class PROMPTEmbedding(nn.Module):
             learned_embedding = self.learned_embedding.repeat(input_embedding.size(0), 1, 1)
             return torch.cat([learned_embedding, input_embedding], 1)
 
+def get_aliases():
+    return ['promptuning']
+
 def create_T5_model(config: TrainingConfig, tokenizer: T5Tokenizer, prompt_len: int = 100) -> T5ForConditionalGeneration:
 
     model = T5ForConditionalGeneration.from_pretrained(
@@ -99,7 +102,6 @@ def create_stuff(config: TrainingConfig):
         source['input_ids'] = torch.cat([fake_prompt, source['input_ids']], axis=1)[:,:512]
         source['attention_mask'] = torch.cat([fake_prompt, source['attention_mask']], axis=1)[:,:512]
         
-
         return source
 
     training_data = TrainingData(config=config, allowed_test_sets=['cf'], 
@@ -108,7 +110,7 @@ def create_stuff(config: TrainingConfig):
     return training_elems, training_data
 
 
-def run(config: TrainingConfig):
+def run(config: TrainingConfig, alias: str):
 
     training_elems, training_data = create_stuff(config)
 
@@ -134,9 +136,6 @@ def run(config: TrainingConfig):
                             )
 
                 losses.append(loss)
-
-                # if len(losses) >= 10:
-                #     break
 
         loss = sum(losses)/len(losses)
 

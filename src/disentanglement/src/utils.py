@@ -198,6 +198,17 @@ def _get_data_path_for(experiment_id: int) -> Tuple[str, str, str]:
 
     return director+train, director+val, director+test
 
+def get_experiment_name(experiment_id: int) -> str:
+
+    Names = {
+        'exp1': 's(f)',
+        'exp2': 's(f+cf)',
+        'exp3': 's(f+a)',
+        'exp4': 's(f+cf+a)'
+    }
+    return Names[experiment_id]
+
+
 
 def collate_fn(input: pd.DataFrame, tokenizer: T5Tokenizer, closure=None, postprocessing=None):
 

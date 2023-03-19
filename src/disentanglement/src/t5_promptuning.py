@@ -39,6 +39,9 @@ class PromptTuning(nn.Module):
         
         return prompt
 
+def get_aliases():
+    return ['promptuning']
+
 def create_T5_model(config: TrainingConfig, tokenizer: T5Tokenizer) -> T5ForConditionalGeneration:
 
     model = T5ForConditionalGeneration.from_pretrained(
@@ -90,7 +93,7 @@ def create_stuff(config: TrainingConfig):
     return training_elems, training_data
 
 
-def run(config: TrainingConfig):
+def run(config: TrainingConfig, alias: str):
 
     training_elems, training_data = create_stuff(config)
 

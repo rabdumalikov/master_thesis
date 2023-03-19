@@ -3,10 +3,26 @@ import wandb
 import argparse
 import utils
 
+import t5_softprompt
+import t5_finetuning
+import t5_promptuning2
+import t5_inctxlearning
+import t5_adversarial_training
+
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 
 
 def main():
+
+    choises = [
+        (t5_softprompt.get_aliases(), t5_softprompt.run),
+        (t5_finetuning.get_aliases(), t5_finetuning.run),
+        (t5_promptuning2.get_aliases(), t5_promptuning2.run), 
+        (t5_inctxlearning.get_aliases(), t5_inctxlearning.run), 
+        (t5_adversarial_training.get_aliases(), t5_adversarial_training.run), 
+        ]
+
+    all_choises = [ c[0] for c in choises ]
 
     # Create the parser
     parser = argparse.ArgumentParser(description='MasterThesis')
@@ -32,7 +48,7 @@ def main():
                         help='gradient accumulation steps')
 
     parser.add_argument(
-        '-t', '--tuning', choices=['ftuning', 'ptuning', 'promptuning', 'adapters', 'lora', 'adversarial_training', 'in-context-learning'])
+        '-t', '--tuning', choices=all_choises) #['finetuning', 'prefixtuning', 'promptuning', 'adapters', 'lora', 'adversarial_training', 'in-context-learning'])
 
     # Parse the arguments
     args = parser.parse_args()
@@ -48,38 +64,39 @@ def main():
         FP16=args.fp16
     )
 
+    experiment_name = get_experiment_alias(args.exp_id)
+
     # start a new wandb run to track this script
     wandb.init(
         # set the wandb project where this run will be logged
         project="MasterThesis",
         id=str(args.process_id),
-        name=f'T5_{args.model_name}-{args.tuning}-{args.process_id}(id)',
+        group='Experiment_1',
+        name=f'T5_{args.model_name}-[{args.tuning}]-on[{experiment_name}]-id[{args.process_id}]',
         # track hyperparameters and run metadata
         config=vars(config)
     )
 
-    print(f'Arguments: {args}')
+    # T5_large-[finetuning]-on[s(f+cf+a)]-id[200]
+    # T5_large-[prefix-tuning]-on[s(f)]-id[201]
+    # T5_large-[bottleneck-adapters]-on[s(f+cf+a)]-id[203]
+    # T5_large-[lora]-on[s(f+cf+a)]-id[204]
+    # T5_large-[promptuning]-on[s(f+cf+a)]-id[205]
+    # T5_large-[adversarial-training]-on[s(f+cf+a)]-id[206]
 
-    if args.tuning == 'ftuning':
-        import t5_finetuning
-        best_em_score = t5_finetuning.run(config)
-    elif args.tuning == 'ptuning':
-        import t5_ptuning
-        best_em_score = t5_ptuning.run(config)
-    elif args.tuning == 'promptuning':
-        import t5_promptuning2
-        best_em_score = t5_promptuning2.run(config)
-    elif args.tuning == 'in-context-learning':
-        import t5_inctxlearning
-        best_em_score = t5_inctxlearning.run(config)
-    elif args.tuning == 'adversarial_training':
-        import t5_adversarial_training
-        best_em_score = t5_adversarial_training.run(config)
+    print("\n============================")
+    print(f'ARGUMENTS: {args}')
+    print("============================\n")
 
-    print("\n============================\n")
-    print(f'{best_em_score=}')
+    for choice in choices:
+        if args.tuning in choice[0]:
+            best_em_score = choice[1](config, args.tuning)
 
-    wandb.log({'best_em_score': best_em_score})
+            print("\n============================\n")
+            print(f'{best_em_score=}')
+
+            wandb.log({'best_em_score': best_em_score})
+            break
 
     wandb.finish()
 

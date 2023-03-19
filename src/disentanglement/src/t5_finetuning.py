@@ -5,6 +5,8 @@ import common_utils
 from utils import *
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 
+def get_aliases():
+    return ['finetuning']
 
 def create_T5_model(model_name: str, tokenizer: T5Tokenizer) -> T5ForConditionalGeneration:
 
@@ -36,7 +38,7 @@ def create_stuff(config: TrainingConfig):
     return training_elems, training_data
 
 
-def run(config: TrainingConfig):
+def run(config: TrainingConfig, alias: str):
 
     training_elems, training_data = create_stuff(config)
 
