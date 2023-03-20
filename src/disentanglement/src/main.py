@@ -2,7 +2,7 @@ import os
 import wandb
 import argparse
 import utils
-
+import numpy as np
 import t5_softprompt
 import t5_finetuning
 import t5_promptuning2
@@ -30,7 +30,9 @@ def main():
         (t5_adversarial_training.get_aliases(), t5_adversarial_training.run),
     ]
 
-    all_tuning_choises = [c[0] for c in tuning_choices]
+    all_tuning_choises = []
+    for c in tuning_choices:
+        all_tuning_choises.extend(c[0])
 
     dataset_types_choices = ['s(f)', 's(f+cf)', 's(f+a)', 's(f+cf+a)']
 
@@ -59,7 +61,7 @@ def main():
                         help='gradient accumulation steps')
 
     parser.add_argument(
-        '-t', '--tuning', choices=all_tuning_choises)  # ['finetuning', 'prefixtuning', 'promptuning', 'adapters', 'lora', 'adversarial_training', 'in-context-learning'])
+        '-t', '--tuning', type=str, choices=all_tuning_choises)  # ['finetuning', 'prefixtuning', 'promptuning', 'adapters', 'lora', 'adversarial_training', 'in-context-learning'])
 
     # Parse the arguments
     args = parser.parse_args()
@@ -97,7 +99,7 @@ def main():
     print(f'ARGUMENTS: {args}')
     print("============================\n")
 
-    for choice in all_tuning_choises:
+    for choice in tuning_choices:
         if args.tuning in choice[0]:
             best_em_score = choice[1](config, args.tuning)
 

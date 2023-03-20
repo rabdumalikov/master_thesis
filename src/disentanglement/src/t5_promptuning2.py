@@ -50,6 +50,22 @@ class PromptEmbedding(nn.Module):
         else:
             return self.wte(tokens)
 
+def custom_save_model(training_elements: TrainingElements, em_score: float, loss: float, e: int, model_name: str, folder: str):
+    ext = model_name.split('-')[-1]
+
+    print(em_score, ext, loss, e, model_name)
+
+    checkpoint_path = f'{folder}/checkpoint_{e}'
+
+    if not os.path.exists(checkpoint_path):
+        os.makedirs(checkpoint_path)
+
+    with open(f'{checkpoint_path}/results.txt', 'w') as f:
+        f.write(f'epoch={e}\nloss={loss}\nem={round(em_score,3)}')
+
+    prompt_embed = training_elements.model.get_input_embeddings()
+
+    torch.save(prompt_embed.state_dict(), f'{checkpoint_path}/model.pth')
 
 def get_aliases():
     return ['promptuning']
@@ -58,7 +74,7 @@ def get_aliases():
 def create_T5_model(config: TrainingConfig, tokenizer: T5Tokenizer, prompt_len: int = 100) -> T5ForConditionalGeneration:
 
     model = T5ForConditionalGeneration.from_pretrained(
-        'google/t5-xl-lm-adapt')  # , device_map='balanced')
+        config.model_name)  # , device_map='balanced')
     model.resize_token_embeddings(len(tokenizer))
     model.gradient_checkpointing_enable()
     model.config.use_cache = False
@@ -92,7 +108,7 @@ def create_optimizer(model: T5ForConditionalGeneration) -> Adafactor:
 
 def create_stuff(config: TrainingConfig):
     tokenizer = common_utils.create_tokenizer(
-        model_name='google/t5-xl-lm-adapt')
+        model_name=config.model_name)
 
     print_gpu_utilization()
 
@@ -124,6 +140,8 @@ def create_stuff(config: TrainingConfig):
 
 def run(config: TrainingConfig, alias: str):
 
+    config.closure_to_save_model = custom_save_model
+
     training_elems, training_data = create_stuff(config)
 
     print("Training started...")
@@ -148,6 +166,7 @@ def run(config: TrainingConfig, alias: str):
                                   )
 
                 losses.append(loss)
+
 
         loss = sum(losses)/len(losses)
 

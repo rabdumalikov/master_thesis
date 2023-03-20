@@ -5,7 +5,7 @@ def create_tokenizer(model_name: str) -> T5Tokenizer:
     # Load the tokenizer
     tokenizer = T5Tokenizer.from_pretrained(model_name)
 
-    SPECIAL_TOKENS_DICT = {'pad_token': '<pad>'}
+    SPECIAL_TOKENS_DICT = {'pad_token': '<pad>', 'additional_special_tokens' : ['unanswerable']}
     tokenizer.add_special_tokens(SPECIAL_TOKENS_DICT)
 
     print("Finished loading tokenizer")

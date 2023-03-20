@@ -58,6 +58,7 @@ class TrainingConfig:
         self.epochs = epochs
         self.FP16 = FP16
         self.model_saving_folder = model_saving_folder
+        self.closure_to_save_model = save_model
 
 
 class TrainingData:
@@ -83,10 +84,7 @@ class TrainingData:
             if k not in allowed_test_sets:
                 continue
 
-            sampler = RandomSampler(PandasDataset(
-                test_set[k]), replacement=True)
-
-            self.test_loaders[k] = DataLoader(PandasDataset(test_set[k]), sampler=sampler, collate_fn=lambda inp: collate_fn(
+            self.test_loaders[k] = DataLoader(PandasDataset(test_set[k]), collate_fn=lambda inp: collate_fn(
                 inp, **kwargs), batch_size=config.eval_batch_size, num_workers=4, pin_memory=True)
 
 
@@ -343,6 +341,17 @@ def validate(training_elements: TrainingElements, training_data: TrainingData,
     if current_epoch % training_config.evaluation_every != 0:
         return
 
+    val_exact_match_acc = evaluate(
+            training_elements, training_config, training_data.val_loader, verbose, **kwargs)
+
+    wandb.log({'epoch': current_epoch,
+                'loss': loss, f'val_EM_acc': val_exact_match_acc})
+
+    print(f'Saving model at e={current_epoch}')
+
+    training_config.closure_to_save_model(training_elements, val_exact_match_acc, loss,
+                current_epoch, training_config.model_name, folder)
+
     for key in training_data.test_loaders:
         loader = training_data.test_loaders[key]
 
@@ -354,16 +363,7 @@ def validate(training_elements: TrainingElements, training_data: TrainingData,
 
         print(f'\t{key=} e={current_epoch}, {exact_match_acc=}')
 
-        if exact_match_acc > best_em_score:
-            best_em_score = exact_match_acc
-
-            print(
-                f'Saving {key} model at e={current_epoch} with bestEM={best_em_score}')
-
-            save_model(training_elements, exact_match_acc, loss,
-                       current_epoch, training_config.model_name, folder)
-
-    return best_em_score
+    return val_exact_match_acc if val_exact_match_acc > best_em_score else best_em_score
 
 
 def train_step(training_elements: TrainingElements, config: TrainingConfig,

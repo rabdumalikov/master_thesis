@@ -49,7 +49,7 @@ def create_stuff(config: TrainingConfig, adapter_name: str):
     training_elems = TrainingElements(
         create_T5_model(config.model_name, tokenizer,
                         adapter_name, config.device), tokenizer, torch.cuda.amp.GradScaler(),
-        lambda model: common_utils.create_optimizer(model))
+        lambda model: create_optimizer_for_prefix(model) if adapter_name == 'prefix_tuning' else common_utils.create_optimizer(model))
     print_gpu_utilization()
 
     training_data = TrainingData(config=config, tokenizer=tokenizer)
@@ -57,7 +57,8 @@ def create_stuff(config: TrainingConfig, adapter_name: str):
     return training_elems, training_data
 
 
-def create_optimizer(model: T5ForConditionalGeneration) -> Adafactor:
+def create_optimizer_for_prefix(model: T5ForConditionalGeneration) -> Adafactor:
+    print("Used OPTIMIZER for prefix tuning")
     return Adafactor(
         model.parameters(),
         lr=0.1,

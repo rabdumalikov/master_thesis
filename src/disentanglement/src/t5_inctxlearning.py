@@ -49,6 +49,7 @@ def run(config: TrainingConfig, alias: str):
 
     # I want to try another T5 version with unlearned span corruption
     config.model_name = 'google/t5-xxl-lm-adapt'
+    config.eval_batch_size = config.batch_size
 
     training_elems, training_data = create_stuff(config)
 
@@ -57,4 +58,16 @@ def run(config: TrainingConfig, alias: str):
 
     torch.cuda.empty_cache()
 
-    return evaluate(training_elems, config, training_data.test_loader, verbose=True)
+    best_exact_match_acc = 0.0
+    for key in training_data.test_loaders:
+        loader = training_data.test_loaders[key]
+
+        exact_match_acc = evaluate(
+            training_elems, config, loader, verbose=True)
+        
+        print(f'{key=} {exact_match_acc=}')
+
+        if exact_match_acc > best_exact_match_acc:
+            best_exact_match_acc = exact_match_acc
+
+    return best_exact_match_acc

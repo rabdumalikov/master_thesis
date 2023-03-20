@@ -4,15 +4,16 @@ import common_utils
 
 from utils import *
 from transformers import T5Tokenizer, T5ForConditionalGeneration
+from transformers.adapters import PrefixTuningConfig, AdapterConfig, LoRAConfig, AutoAdapterModel
 
 
 def create_T5_model(model_name: str, tokenizer: T5Tokenizer) -> T5ForConditionalGeneration:
-
+    
     model = T5ForConditionalGeneration.from_pretrained(
-        model_name, device_map='balanced')
-    model.resize_token_embeddings(len(tokenizer))
-    model.gradient_checkpointing_enable()
-    model.config.use_cache = False
+            model_name
+        )
+    #model.set_active_adapters('prefix_tuning')
+    model.cuda()
 
     print("Finished loading model")
 
@@ -58,10 +59,20 @@ def find_best_checkpoint(id: int):
 
 def main():
 
-    model_name = find_best_checkpoint(197)
+    model_name = find_best_checkpoint(194)
+
+    with open(model_name+'/results.txt', 'r') as f:
+        print(f.readlines())
 
     config = TrainingConfig(model_name=model_name,
-                            dataset_type='s(f)', batch_size=32, eval_batch_size=32)
+                            dataset_type='s(f)', batch_size=32,
+                            num_gpus=1, gradient_accumulation_steps=1,
+                            gpu_stat_every=500, 
+                            evaluation_every=1, 
+                            device=deduce_device(), 
+                            epochs=100, 
+                            model_saving_folder='',
+                )
 
     training_elems, training_data = create_stuff(config)
 
@@ -70,7 +81,9 @@ def main():
 
     torch.cuda.empty_cache()
 
-    return evaluate(training_elems, config, training_data.test_loader, verbose=True)
+    for k in training_data.test_loaders:
+        acc = evaluate(training_elems, config, training_data.test_loaders[k], verbose=True)
+        print(f'{k=} {acc=}')
 
 
 if __name__ == '__main__':

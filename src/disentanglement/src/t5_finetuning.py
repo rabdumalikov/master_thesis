@@ -39,7 +39,6 @@ def create_stuff(config: TrainingConfig):
 
     return training_elems, training_data
 
-
 def run(config: TrainingConfig, alias: str):
 
     training_elems, training_data = create_stuff(config)

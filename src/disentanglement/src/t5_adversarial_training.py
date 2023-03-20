@@ -6,6 +6,44 @@ from utils import *
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 
 
+class CustomTrainingData:
+    def __init__(self, config: TrainingConfig,
+                 allowed_test_sets: List[int] = ['f', 'cf', 'a(e)', 'a(r)'], **kwargs):
+
+        test_mapping = {'factual': 'f', 'counterfactual': 'cf',
+                        'closed_book': 'a(e)', 'random_context': 'a(r)'}
+
+        train_set, val_set, test_set = get_data(
+            config.dataset_type, test_mapping)
+
+        print(
+            f'TrainingData: {len(train_set)=} {len(val_set)=} {len(test_set)=}')
+
+        self.f_train_loader = DataLoader(PandasDataset(train_set[train_set['type'] == 'factual']), 
+            collate_fn=lambda inp: collate_fn(inp, **kwargs), batch_size=config.batch_size, num_workers=4, pin_memory=True)
+
+
+        sampler = RandomSampler(PandasDataset(
+            train_set[train_set['type'] == 'counterfactual']), replacement=True)
+
+        self.cf_train_loader = DataLoader(PandasDataset(train_set[train_set['type'] == 'counterfactual']), sampler=sampler,
+            collate_fn=lambda inp: collate_fn(inp, **kwargs), batch_size=config.batch_size, num_workers=4, pin_memory=True)
+
+        print(len(self.f_train_loader), len(self.cf_train_loader))
+
+        self.val_loader = DataLoader(PandasDataset(val_set), collate_fn=lambda inp: collate_fn(
+            inp, **kwargs), batch_size=config.eval_batch_size, num_workers=4, pin_memory=True)
+
+        self.test_loaders = {}
+        for k in test_set:
+            if k not in allowed_test_sets:
+                continue
+
+            self.test_loaders[k] = DataLoader(PandasDataset(test_set[k]), collate_fn=lambda inp: collate_fn(
+                inp, **kwargs), batch_size=config.eval_batch_size, num_workers=4, pin_memory=True)
+
+
+
 def get_aliases():
     return ['adversarial_training']
 
@@ -35,25 +73,26 @@ def create_stuff(config: TrainingConfig):
 
     print_gpu_utilization()
 
-    training_data = TrainingData(config=config, tokenizer=tokenizer)
+    training_data = CustomTrainingData(config=config, tokenizer=tokenizer)
 
     return training_elems, training_data
 
 
 def train_step(training_elements: TrainingElements, config: TrainingConfig,
-               train_batch, test_batch, batch_idx: int, need_to_optimize: bool, **kwargs):
+               train_batch, counterfactual_batch, batch_idx: int, need_to_optimize: bool, **kwargs):
 
     torch.cuda.empty_cache()
 
-    test_src_ids = test_batch[0].to(0)
-    test_src_am = test_batch[1].to(0)
-    test_trg_ids = test_batch[2].to(0)
-    test_lm_labels = test_trg_ids.clone().detach()
-    test_lm_labels[test_trg_ids ==
+    cf_src_ids = counterfactual_batch[0].to(0)
+    cf_src_am = counterfactual_batch[1].to(0)
+    cf_trg_ids = counterfactual_batch[2].to(0)
+
+    cf_lm_labels = cf_trg_ids.clone().detach()
+    cf_lm_labels[cf_trg_ids ==
                    training_elements.tokenizer.pad_token_id] = -100
 
     # target = training_elements.tokenizer.batch_decode(
-    #     test_trg_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
+    #     cf_trg_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
 
     # print(f'TestCF: {target}')
 
@@ -73,13 +112,13 @@ def train_step(training_elements: TrainingElements, config: TrainingConfig,
         )[0]
 
         loss2 = training_elements.model(
-            input_ids=test_src_ids,
-            attention_mask=test_src_am,
-            labels=test_lm_labels.to(f'cuda:{config.num_gpus-1}'),
+            input_ids=cf_src_ids,
+            attention_mask=cf_src_am,
+            labels=cf_lm_labels.to(f'cuda:{config.num_gpus-1}'),
             **kwargs
         )[0]
 
-        loss = loss1 + 0.5 * loss2
+        loss = loss1 + 0.25 * loss2 # 0.25 comes from undersensitivity paper
 
     # normalize loss to account for batch accumulation
     loss = loss / config.gradient_accumulation_steps
@@ -114,17 +153,17 @@ def run(config: TrainingConfig, alias: str):
         losses = []
 
         with TimeMeasure(epoch=e):
-            for batch_idx, train_batch in enumerate(training_data.train_loader, 1):
+            for batch_idx, train_batch in enumerate(training_data.f_train_loader, 1):
                 need_to_optimize = ((batch_idx + 1) % config.gradient_accumulation_steps ==
                                     0) or (batch_idx + 1 == len(training_data.train_loader))
 
-                for batch_idx, batch in enumerate(training_data.test_loaders['cf'], 1):
-                    test_batch = batch
+                for batch_idx, batch in enumerate(training_data.cf_train_loader, 1):
+                    counterfactual_batch = batch
 
                     break
 
                 loss = train_step(training_elements=training_elems,
-                                  config=config, train_batch=train_batch, test_batch=test_batch,
+                                  config=config, train_batch=train_batch, counterfactual_batch=counterfactual_batch,
                                   batch_idx=batch_idx, need_to_optimize=need_to_optimize)
 
                 losses.append(loss)
