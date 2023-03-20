@@ -42,12 +42,16 @@ class PromptEmbedding(nn.Module):
         # T5 original embedding layer with ours). fake_prompt is
         # a dummy payload of all 1's. It is used just to book the space.
 
+        #print(tokens.size(1) <= self.prompt_length, tokens[:, : self.prompt_length])
+
         if (tokens[:, : self.prompt_length] == 1).all().item():
+            #print("FORWARD: prompt")
             input_embedding = self.wte(tokens[:, self.prompt_length:])
             learned_embedding = self.learned_embedding.repeat(
                 input_embedding.size(0), 1, 1)
             return torch.cat([learned_embedding, input_embedding], 1)
         else:
+            #print("FORWARD: not prompt")
             return self.wte(tokens)
 
 def custom_save_model(training_elements: TrainingElements, em_score: float, loss: float, e: int, model_name: str, folder: str):
@@ -112,7 +116,7 @@ def create_stuff(config: TrainingConfig):
 
     print_gpu_utilization()
 
-    prompt_len = 100
+    prompt_len = 20 # from paper: 'going beyong 20 prompt tokens only yields marginal gains'.
     model = create_T5_model(config, tokenizer, prompt_len)
 
     training_elems = TrainingElements(
@@ -141,7 +145,7 @@ def create_stuff(config: TrainingConfig):
 def run(config: TrainingConfig, alias: str):
 
     config.closure_to_save_model = custom_save_model
-
+    config.model_name = 'google/t5-xl-lm-adapt'
     training_elems, training_data = create_stuff(config)
 
     print("Training started...")

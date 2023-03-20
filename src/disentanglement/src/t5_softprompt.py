@@ -61,7 +61,7 @@ def create_optimizer_for_prefix(model: T5ForConditionalGeneration) -> Adafactor:
     print("Used OPTIMIZER for prefix tuning")
     return Adafactor(
         model.parameters(),
-        lr=0.1,
+        lr=0.0001,
         eps=(1e-30, 1e-3),
         clip_threshold=1.0,
         decay_rate=-0.8,

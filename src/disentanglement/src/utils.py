@@ -344,6 +344,8 @@ def validate(training_elements: TrainingElements, training_data: TrainingData,
     val_exact_match_acc = evaluate(
             training_elements, training_config, training_data.val_loader, verbose, **kwargs)
 
+    print(f'\te={current_epoch}, {val_exact_match_acc=}')
+
     wandb.log({'epoch': current_epoch,
                 'loss': loss, f'val_EM_acc': val_exact_match_acc})
 

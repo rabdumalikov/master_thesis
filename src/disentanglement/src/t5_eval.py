@@ -1,4 +1,4 @@
-
+import torch
 import pandas as pd
 import common_utils
 
@@ -13,6 +13,18 @@ def create_T5_model(model_name: str, tokenizer: T5Tokenizer) -> T5ForConditional
             model_name
         )
     #model.set_active_adapters('prefix_tuning')
+    #model.cuda()
+
+    # Freeze LM
+    for param in model.parameters():
+        param.requires_grad = False
+
+    prompt_emb = torch.load( find_best_checkpoint(262) + '/model.pth' )
+    
+    # prompt_emb = PromptEmbedding(model.get_input_embeddings(),
+    #                              prompt_length=prompt_len,
+    #                              initialize_from_vocab=True)
+    model.set_input_embeddings(prompt_emb)
     model.cuda()
 
     print("Finished loading model")
@@ -32,8 +44,19 @@ def create_stuff(config: TrainingConfig):
 
     print_gpu_utilization()
 
+    def postprocessing(source):
+        fake_prompt = torch.ones((source['input_ids'].size(0), prompt_len),
+                                 dtype=source['input_ids'].dtype)
+
+        source['input_ids'] = torch.cat(
+            [fake_prompt, source['input_ids']], axis=1)[:, :512]
+        source['attention_mask'] = torch.cat(
+            [fake_prompt, source['attention_mask']], axis=1)[:, :512]
+
+        return source
+
     training_data = TrainingData(
-        config=config, tokenizer=tokenizer)
+        config=config, tokenizer=tokenizer, closure=None, postprocessing=postprocessing)
 
     return training_elems, training_data
 
@@ -59,7 +82,7 @@ def find_best_checkpoint(id: int):
 
 def main():
 
-    model_name = find_best_checkpoint(194)
+    model_name = find_best_checkpoint(262)
 
     with open(model_name+'/results.txt', 'r') as f:
         print(f.readlines())
@@ -73,6 +96,7 @@ def main():
                             epochs=100, 
                             model_saving_folder='',
                 )
+    config.model_name = 'google/t5-xl-lm-adapt'
 
     training_elems, training_data = create_stuff(config)
 
