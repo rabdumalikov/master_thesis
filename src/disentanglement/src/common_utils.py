@@ -5,14 +5,11 @@ def create_tokenizer(model_name: str) -> T5Tokenizer:
     # Load the tokenizer
     tokenizer = T5Tokenizer.from_pretrained(model_name)
 
-    SPECIAL_TOKENS_DICT = {'pad_token': '<pad>', 'additional_special_tokens' : ['unanswerable']}
-    tokenizer.add_special_tokens(SPECIAL_TOKENS_DICT)
-
     print("Finished loading tokenizer")
 
     return tokenizer
 
-def create_optimizer(model: T5ForConditionalGeneration) -> Adafactor:
+def create_optimizer(model: T5ForConditionalGeneration):
     return Adafactor(
         model.parameters(),
         lr=0.0001,
@@ -24,4 +21,4 @@ def create_optimizer(model: T5ForConditionalGeneration) -> Adafactor:
         relative_step=False,
         scale_parameter=False,
         warmup_init=False,
-    )
+        ), None

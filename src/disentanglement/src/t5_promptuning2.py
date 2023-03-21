@@ -45,13 +45,11 @@ class PromptEmbedding(nn.Module):
         #print(tokens.size(1) <= self.prompt_length, tokens[:, : self.prompt_length])
 
         if (tokens[:, : self.prompt_length] == 1).all().item():
-            #print("FORWARD: prompt")
             input_embedding = self.wte(tokens[:, self.prompt_length:])
             learned_embedding = self.learned_embedding.repeat(
                 input_embedding.size(0), 1, 1)
             return torch.cat([learned_embedding, input_embedding], 1)
         else:
-            #print("FORWARD: not prompt")
             return self.wte(tokens)
 
 def custom_save_model(training_elements: TrainingElements, em_score: float, loss: float, e: int, model_name: str, folder: str):
@@ -74,8 +72,7 @@ def custom_save_model(training_elements: TrainingElements, em_score: float, loss
 def get_aliases():
     return ['promptuning']
 
-
-def create_T5_model(config: TrainingConfig, tokenizer: T5Tokenizer, prompt_len: int = 100) -> T5ForConditionalGeneration:
+def create_T5_model(config: TrainingConfig, tokenizer: T5Tokenizer, prompt_len: int = 100, checkpoint: str = None) -> T5ForConditionalGeneration:
 
     model = T5ForConditionalGeneration.from_pretrained(
         config.model_name)  # , device_map='balanced')
@@ -90,6 +87,18 @@ def create_T5_model(config: TrainingConfig, tokenizer: T5Tokenizer, prompt_len: 
     prompt_emb = PromptEmbedding(model.get_input_embeddings(),
                                  prompt_length=prompt_len,
                                  initialize_from_vocab=True)
+
+    if checkpoint is not None:
+        print(f"Loading from checkpoint={checkpoint}")
+
+        state_dict = torch.load(f'{checkpoint}/model.pth')
+        
+        print(model.get_input_embeddings().weight)
+        print(state_dict.keys())
+        state_dict['wte.weight'] = model.get_input_embeddings().weight
+
+        prompt_emb.load_state_dict( state_dict )
+    
     model.set_input_embeddings(prompt_emb)
     model.cuda()
 
@@ -98,26 +107,30 @@ def create_T5_model(config: TrainingConfig, tokenizer: T5Tokenizer, prompt_len: 
     return model
 
 
-def create_optimizer(model: T5ForConditionalGeneration) -> Adafactor:
-    return Adafactor(
-        model.parameters(),
-        lr=3e-1,
-        beta1=0.8,
-        weight_decay=1e-5,
-        relative_step=False,
-        scale_parameter=False,
-        warmup_init=False,
-    )
+def create_optimizer(model: T5ForConditionalGeneration):
+    print("Prompt create_optimizer")
+    
+    return common_utils.create_optimizer( model )
+    
+    # return Adafactor(
+    #     model.parameters(),
+    #     lr=0.3,
+    #     beta1=0.8,
+    #     weight_decay=1e-5,
+    #     relative_step=False,
+    #     scale_parameter=False,
+    #     warmup_init=False,
+    # ), None
 
 
-def create_stuff(config: TrainingConfig):
+def create_stuff(config: TrainingConfig, checkpoint: str = None):
     tokenizer = common_utils.create_tokenizer(
         model_name=config.model_name)
 
     print_gpu_utilization()
 
-    prompt_len = 20 # from paper: 'going beyong 20 prompt tokens only yields marginal gains'.
-    model = create_T5_model(config, tokenizer, prompt_len)
+    prompt_len = 100 # from paper: 'going beyong 20 prompt tokens only yields marginal gains'.
+    model = create_T5_model(config, tokenizer, prompt_len, checkpoint)
 
     training_elems = TrainingElements(
         model, tokenizer, torch.cuda.amp.GradScaler(),
@@ -145,7 +158,7 @@ def create_stuff(config: TrainingConfig):
 def run(config: TrainingConfig, alias: str):
 
     config.closure_to_save_model = custom_save_model
-    config.model_name = 'google/t5-xl-lm-adapt'
+
     training_elems, training_data = create_stuff(config)
 
     print("Training started...")
@@ -159,7 +172,9 @@ def run(config: TrainingConfig, alias: str):
 
         losses = []
 
-        with TimeMeasure(epoch=e):
+        steps = get_number_training_steps(e, len(training_data.train_loader), config.batch_size )
+
+        with TimeMeasure(epoch=e, steps=steps):
             for batch_idx, train_batch in enumerate(training_data.train_loader, 1):
 
                 need_to_optimize = ((batch_idx + 1) % config.gradient_accumulation_steps ==

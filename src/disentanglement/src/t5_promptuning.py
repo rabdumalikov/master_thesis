@@ -71,15 +71,16 @@ def create_T5_model(config: TrainingConfig, tokenizer: T5Tokenizer) -> T5ForCond
 
 
 def create_optimizer(model: T5ForConditionalGeneration) -> Adafactor:
-    return Adafactor(
-        model.parameters(),
-        lr=3e-1,
-        beta1=0.8,
-        weight_decay=1e-5,
-        relative_step=False,
-        scale_parameter=False,
-        warmup_init=False,
-    )
+    return common_utils.create_optimizer( model )
+    # return Adafactor(
+    #     model.parameters(),
+    #     lr=3e-1,
+    #     beta1=0.8,
+    #     weight_decay=1e-5,
+    #     relative_step=False,
+    #     scale_parameter=False,
+    #     warmup_init=False,
+    # )
 
 
 def create_stuff(config: TrainingConfig):
@@ -118,7 +119,8 @@ def run(config: TrainingConfig, alias: str):
 
         losses = []
 
-        with TimeMeasure(epoch=e):
+        steps = get_number_training_steps(e, len(training_data.train_loader), config.batch_size )
+        with TimeMeasure(epoch=e, steps=steps):
             for batch_idx, train_batch in enumerate(training_data.train_loader, 1):
 
                 prompt = training_elems.prompt_model(batch_size=train_batch[0].size(

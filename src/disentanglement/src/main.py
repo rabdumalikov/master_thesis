@@ -21,7 +21,7 @@ def get_short_model_name(name):
 
 
 def main():
-    model_name_choices = ['large', 'xl', 'xxl']
+    model_name_choices = utils.get_model_name_choices()
     tuning_choices = [
         (t5_softprompt.get_aliases(), t5_softprompt.run),
         (t5_finetuning.get_aliases(), t5_finetuning.run),
@@ -34,7 +34,7 @@ def main():
     for c in tuning_choices:
         all_tuning_choises.extend(c[0])
 
-    dataset_types_choices = ['s(f)', 's(f+cf)', 's(f+a)', 's(f+cf+a)']
+    dataset_types_choices = utils.get_dataset_name_choices()
 
     # Create the parser
     parser = argparse.ArgumentParser(description='MasterThesis')
@@ -74,7 +74,8 @@ def main():
         device=utils.deduce_device(), dataset_type=args.dataset_type,
         epochs=utils.get_number_of_epochs(args.epochs),
         model_saving_folder=args.save_in,
-        FP16=args.fp16
+        FP16=args.fp16,
+        tuning_method=args.tuning
     )
 
     # start a new wandb run to track this script
@@ -83,7 +84,7 @@ def main():
         project="MasterThesis",
         id=str(args.process_id),
         group='Experiment_1',
-        name=f'{get_short_model_name(args.model_name)}-[{args.tuning}]-on[{args.dataset_type}]-id[{args.process_id}]',
+        name=f'id[{args.process_id}]-[{args.tuning}]-on[{args.dataset_type}]-bs[{config.batch_size}]-{get_short_model_name(args.model_name)}',
         # track hyperparameters and run metadata
         config=vars(config)
     )

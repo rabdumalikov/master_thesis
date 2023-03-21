@@ -48,7 +48,9 @@ def get_aliases():
     return ['adversarial_training']
 
 
-def create_T5_model(model_name: str, tokenizer: T5Tokenizer) -> T5ForConditionalGeneration:
+def create_T5_model(model_name: str, tokenizer: T5Tokenizer, checkpoint: str) -> T5ForConditionalGeneration:
+
+    model_name = checkpoint if checkpoint else model_name
 
     model = T5ForConditionalGeneration.from_pretrained(
         model_name, device_map='balanced')
@@ -61,14 +63,14 @@ def create_T5_model(model_name: str, tokenizer: T5Tokenizer) -> T5ForConditional
     return model
 
 
-def create_stuff(config: TrainingConfig):
+def create_stuff(config: TrainingConfig, checkpoint: str = None):
     tokenizer = common_utils.create_tokenizer(model_name=config.model_name)
 
     print_gpu_utilization()
 
     training_elems = TrainingElements(
         create_T5_model(
-            config.model_name, tokenizer), tokenizer, torch.cuda.amp.GradScaler(),
+            config.model_name, tokenizer, checkpoint), tokenizer, torch.cuda.amp.GradScaler(),
         lambda model: common_utils.create_optimizer(model))
 
     print_gpu_utilization()
@@ -152,10 +154,11 @@ def run(config: TrainingConfig, alias: str):
 
         losses = []
 
-        with TimeMeasure(epoch=e):
+        steps = get_number_training_steps(e, len(training_data.f_train_loader), config.batch_size )
+        with TimeMeasure(epoch=e, steps=steps):
             for batch_idx, train_batch in enumerate(training_data.f_train_loader, 1):
                 need_to_optimize = ((batch_idx + 1) % config.gradient_accumulation_steps ==
-                                    0) or (batch_idx + 1 == len(training_data.train_loader))
+                                    0) or (batch_idx + 1 == len(training_data.f_train_loader))
 
                 for batch_idx, batch in enumerate(training_data.cf_train_loader, 1):
                     counterfactual_batch = batch

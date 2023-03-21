@@ -19,9 +19,10 @@ from torch.utils.data import DataLoader, Dataset, RandomSampler
 
 
 class TimeMeasure:
-    def __init__(self, epoch: int):
+    def __init__(self, epoch: int, steps: int):
         self.start = ''
         self.epoch = epoch
+        self.steps = steps
 
     def __enter__(self):
         self.start = timer()
@@ -32,7 +33,7 @@ class TimeMeasure:
 
         print(f'Epoch={self.epoch} took {elapsed_time}')
 
-        wandb.log({'epoch': self.epoch, 'epoch_duration(m)': (
+        wandb.log({'epoch': self.epoch, 'steps': self.steps, 'epoch_duration(m)': (
             elapsed_time.total_seconds()/60)})
 
 
@@ -44,7 +45,8 @@ class TrainingConfig:
                  dataset_type: str,
                  epochs: int,
                  model_saving_folder: str,
-                 FP16: bool = False):
+                 tuning_method: str,
+                 FP16: bool = False ):
 
         self.model_name = model_name
         self.num_gpus = num_gpus
@@ -59,6 +61,7 @@ class TrainingConfig:
         self.FP16 = FP16
         self.model_saving_folder = model_saving_folder
         self.closure_to_save_model = save_model
+        self.tuning_method = tuning_method
 
 
 class TrainingData:
@@ -93,7 +96,7 @@ class TrainingElements:
         self.model = model
         self.tokenizer = tokenizer
         self.scaler = scaler
-        self.optimizer = optimizer(
+        self.optimizer, self.scheduler = optimizer(
             prompt_model if prompt_model is not None else model)
         self.prompt_model = prompt_model
 
@@ -181,18 +184,21 @@ def get_data(dataset_type: str, mapping: Dict[str, str]) -> Tuple[pd.DataFrame, 
 
 
 def get_model_name(short_name: str) -> str:
+    return f'google/t5-{short_name}-lm-adapt'
+    #return f'google/t5-v1_1-{short_name}'
+    # names = {
+    #     'large': 'google/t5-v1_1-large',
+    #     'xl': 'google/t5-v1_1-xl',
+    #     'xxl': 'google/t5-v1_1-xxl',
+    # }
 
-    names = {
-        'large': 'google/t5-v1_1-large',
-        'xl': 'google/t5-v1_1-xl',
-        'xxl': 'google/t5-v1_1-xxl',
-    }
-
-    return names[short_name]
+    # return names[short_name]
 
 # experiment id(or tuning method) correspond to choosen method like finetuning, adapters, lora, etc.
 # dataset id correspond to choosen dataset to train and test agaings like 'f', 'f+cf', 'f+a', etc.
 
+def get_number_training_steps( epoch: int, num_examples: int, batch_size: int ) -> int:
+    return (epoch * num_examples) // batch_size
 
 def _get_data_path_for(dataset_type: str) -> Tuple[str, str, str]:
 
@@ -349,24 +355,25 @@ def validate(training_elements: TrainingElements, training_data: TrainingData,
     wandb.log({'epoch': current_epoch,
                 'loss': loss, f'val_EM_acc': val_exact_match_acc})
 
-    print(f'Saving model at e={current_epoch}')
+    if val_exact_match_acc > best_em_score:
 
-    training_config.closure_to_save_model(training_elements, val_exact_match_acc, loss,
-                current_epoch, training_config.model_name, folder)
+        print(f'Saving model at e={current_epoch}')
 
-    for key in training_data.test_loaders:
-        loader = training_data.test_loaders[key]
+        training_config.closure_to_save_model(training_elements, val_exact_match_acc, loss,
+                    current_epoch, training_config.model_name, folder)
 
-        exact_match_acc = evaluate(
-            training_elements, training_config, loader, verbose, **kwargs)
+        for key in training_data.test_loaders:
+            loader = training_data.test_loaders[key]
 
-        wandb.log({'epoch': current_epoch,
-                   'loss': loss, f'{key}_EM_acc': exact_match_acc})
+            exact_match_acc = evaluate(
+                training_elements, training_config, loader, verbose, **kwargs)
 
-        print(f'\t{key=} e={current_epoch}, {exact_match_acc=}')
+            wandb.log({'epoch': current_epoch,
+                    'loss': loss, f'{key}_EM_acc': exact_match_acc})
+
+            print(f'\t{key=} e={current_epoch}, {exact_match_acc=}')
 
     return val_exact_match_acc if val_exact_match_acc > best_em_score else best_em_score
-
 
 def train_step(training_elements: TrainingElements, config: TrainingConfig,
                train_batch, batch_idx: int, need_to_optimize: bool, **kwargs):
@@ -397,6 +404,10 @@ def train_step(training_elements: TrainingElements, config: TrainingConfig,
     if need_to_optimize:
         training_elements.scaler.step(training_elements.optimizer)
         training_elements.scaler.update()
+        
+        if training_elements.scheduler is not None:
+            training_elements.scheduler.step() 
+
         training_elements.optimizer.zero_grad()
 
     if batch_idx % config.gpu_stat_every == 0:
@@ -411,3 +422,9 @@ def deduce_device() -> torch.device:
     if torch.cuda.is_available():
         device = torch.device("cuda")
     return device
+
+def get_dataset_name_choices() -> List[str]:
+    return ['s(f)', 's(f+cf)', 's(f+a)', 's(f+cf+a)']
+
+def get_model_name_choices() -> List[str]:
+    return ['large', 'xl', 'xxl']
