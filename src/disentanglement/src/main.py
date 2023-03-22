@@ -3,10 +3,10 @@ import wandb
 import argparse
 import utils
 import numpy as np
-import t5_softprompt
 import t5_finetuning
 import t5_promptuning2
 import t5_inctxlearning
+import t5_lightweight_tuning
 import t5_adversarial_training
 
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
@@ -23,7 +23,7 @@ def get_short_model_name(name):
 def main():
     model_name_choices = utils.get_model_name_choices()
     tuning_choices = [
-        (t5_softprompt.get_aliases(), t5_softprompt.run),
+        (t5_lightweight_tuning.get_aliases(), t5_lightweight_tuning.run),
         (t5_finetuning.get_aliases(), t5_finetuning.run),
         (t5_promptuning2.get_aliases(), t5_promptuning2.run),
         (t5_inctxlearning.get_aliases(), t5_inctxlearning.run),

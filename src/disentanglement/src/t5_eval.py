@@ -3,10 +3,10 @@ import torch
 import argparse
 import pandas as pd
 import common_utils
-import t5_softprompt
 import t5_finetuning
 import t5_promptuning2
 import t5_inctxlearning
+import t5_lightweight_tuning
 import t5_adversarial_training
 
 from utils import *
@@ -41,7 +41,7 @@ def find_best_checkpoint(id: int):
 def main():
 
     tuning_choices = [
-        (t5_softprompt.get_aliases(), t5_softprompt.create_stuff),
+        (t5_lightweight_tuning.get_aliases(), t5_lightweight_tuning.create_stuff),
         (t5_finetuning.get_aliases(), t5_finetuning.create_stuff),
         (t5_promptuning2.get_aliases(), t5_promptuning2.create_stuff),
         (t5_inctxlearning.get_aliases(), t5_inctxlearning.create_stuff),

@@ -33,8 +33,14 @@ class TimeMeasure:
 
         print(f'Epoch={self.epoch} took {elapsed_time}')
 
+        duration_table = wandb.Table(columns=["Epoch", "Duration(in hours)"], 
+            data=[[self.epoch,  elapsed_time.total_seconds()/3600]])
+
+        bar = wandb.plot.bar(duration_table, 'Epoch', "Duration(in hours)", title=f'Epoch duration in hours')
+        wandb.log({f"Duration_bar": bar})
+
         wandb.log({'epoch': self.epoch, 'steps': self.steps, 'epoch_duration(m)': (
-            elapsed_time.total_seconds()/60)})
+            elapsed_time.total_seconds()/3600)})
 
 
 class TrainingConfig:
@@ -65,6 +71,7 @@ class TrainingConfig:
 
 
 class TrainingData:
+
     def __init__(self, config: TrainingConfig,
                  allowed_test_sets: List[int] = ['f', 'cf', 'a(e)', 'a(r)'], **kwargs):
 
@@ -89,6 +96,16 @@ class TrainingData:
 
             self.test_loaders[k] = DataLoader(PandasDataset(test_set[k]), collate_fn=lambda inp: collate_fn(
                 inp, **kwargs), batch_size=config.eval_batch_size, num_workers=4, pin_memory=True)
+
+    def to_readable_name(abbreviation: str):
+        if abbreviation == 'f': 
+            return "Factual"
+        elif abbreviation == 'cf': 
+            return "Counterfactual"
+        elif abbreviation == 'a(e)': 
+            return "Empty"
+        elif abbreviation == 'a(r)': 
+            return "Random"
 
 
 class TrainingElements:
@@ -362,16 +379,30 @@ def validate(training_elements: TrainingElements, training_data: TrainingData,
         training_config.closure_to_save_model(training_elements, val_exact_match_acc, loss,
                     current_epoch, training_config.model_name, folder)
 
+        results = {}
         for key in training_data.test_loaders:
+
             loader = training_data.test_loaders[key]
 
             exact_match_acc = evaluate(
                 training_elements, training_config, loader, verbose, **kwargs)
 
+            results[training_data.to_readable_name(key)] = exact_match_acc
+
             wandb.log({'epoch': current_epoch,
                     'loss': loss, f'{key}_EM_acc': exact_match_acc})
 
             print(f'\t{key=} e={current_epoch}, {exact_match_acc=}')
+
+        results_table = wandb.Table(columns=["Method(Dataset)", "Factual", "Counterfactual", "Empty", "Random"], 
+            data=[[f'{training_config.tuning}({training_config.dataset_type})', 
+                results['Factual'], results['Counterfactual'], results['Empty'], results['Random']]])
+
+        for col in results_table.columns[1:]:
+            bar = wandb.plot.bar(results_table, 'Method', col, title=f'EM accuracy on {col}')
+            wandb.log({f"{col}_bar": bar})
+
+        wandb.log({"results_table": results_table})
 
     return val_exact_match_acc if val_exact_match_acc > best_em_score else best_em_score
 

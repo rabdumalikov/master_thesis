@@ -48,7 +48,7 @@ def create_stuff(config: TrainingConfig):
 def run(config: TrainingConfig, alias: str):
 
     # I want to try another T5 version with unlearned span corruption
-    config.model_name = 'google/t5-xxl-lm-adapt'
+    #config.model_name = 'google/t5-xxl-lm-adapt'
     config.eval_batch_size = config.batch_size
 
     training_elems, training_data = create_stuff(config)
