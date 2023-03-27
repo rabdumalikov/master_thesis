@@ -5,7 +5,7 @@ import torch
 import tarfile
 import numpy as np
 import pandas as pd
-
+import evaluation_script_squad_v2 as ev
 
 from pynvml import *
 from tqdm import tqdm
@@ -16,7 +16,6 @@ from typing import Tuple, List, Dict, Optional
 from torch.cuda.amp import autocast, GradScaler
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 from torch.utils.data import DataLoader, Dataset, RandomSampler
-
 
 class TimeMeasure:
     def __init__(self, epoch: int, steps: int):
@@ -68,6 +67,11 @@ class TrainingConfig:
         self.model_saving_folder = model_saving_folder
         self.closure_to_save_model = save_model
         self.tuning_method = tuning_method
+        self.max_length = 80
+        self.repetition_penalty = 2.5
+        self.length_penalty = 1.0
+        self.early_stopping = True
+        self.use_cache = True
 
 
 class TrainingData:
@@ -85,9 +89,9 @@ class TrainingData:
             f'TrainingData: {len(train_set)=} {len(val_set)=} {len(test_set)=}')
 
         self.train_loader = DataLoader(PandasDataset(train_set), collate_fn=lambda inp: collate_fn(
-            inp, **kwargs), batch_size=config.batch_size, num_workers=4, pin_memory=True)
+            inp, max_source_input_len=256, **kwargs), batch_size=config.batch_size, shuffle=True, num_workers=4, pin_memory=True)
         self.val_loader = DataLoader(PandasDataset(val_set), collate_fn=lambda inp: collate_fn(
-            inp, **kwargs), batch_size=config.eval_batch_size, num_workers=4, pin_memory=True)
+            inp, max_source_input_len=256, **kwargs), batch_size=config.eval_batch_size, shuffle=True, num_workers=4, pin_memory=True)
 
         self.test_loaders = {}
         for k in test_set:
@@ -95,9 +99,9 @@ class TrainingData:
                 continue
 
             self.test_loaders[k] = DataLoader(PandasDataset(test_set[k]), collate_fn=lambda inp: collate_fn(
-                inp, **kwargs), batch_size=config.eval_batch_size, num_workers=4, pin_memory=True)
+                inp, max_source_input_len=396, **kwargs), batch_size=config.eval_batch_size, shuffle=True, num_workers=4, pin_memory=True)
 
-    def to_readable_name(abbreviation: str):
+    def to_readable_name(self, abbreviation: str):
         if abbreviation == 'f': 
             return "Factual"
         elif abbreviation == 'cf': 
@@ -201,7 +205,8 @@ def get_data(dataset_type: str, mapping: Dict[str, str]) -> Tuple[pd.DataFrame, 
 
 
 def get_model_name(short_name: str) -> str:
-    return f'google/t5-{short_name}-lm-adapt'
+    return f't5-{short_name}'
+    #return f'google/t5-{short_name}-lm-adapt'
     #return f'google/t5-v1_1-{short_name}'
     # names = {
     #     'large': 'google/t5-v1_1-large',
@@ -242,7 +247,7 @@ def get_DisentQA_results(dataset_type: str) -> Optional[float]:
     return DisentQAResults[dataset_type] if dataset_type in DisentQAResults else None
 
 
-def collate_fn(input: pd.DataFrame, tokenizer: T5Tokenizer, closure=None, postprocessing=None):
+def collate_fn(input: pd.DataFrame, max_source_input_len: int, tokenizer: T5Tokenizer, closure=None, postprocessing=None):
 
     input = pd.concat(input, axis=1).T
 
@@ -254,7 +259,7 @@ def collate_fn(input: pd.DataFrame, tokenizer: T5Tokenizer, closure=None, postpr
     source_dict = tokenizer(que_ctx,  # Sentence to encode.
                             add_special_tokens=True,  # Add '[CLS]' and '[SEP]'
                             # Pad & truncate all sentences.
-                            max_length=512,
+                            max_length=max_source_input_len,
                             padding='max_length',
                             # Construct attn. masks.
                             return_attention_mask=True,
@@ -264,11 +269,11 @@ def collate_fn(input: pd.DataFrame, tokenizer: T5Tokenizer, closure=None, postpr
     if postprocessing is not None:
         source_dict = postprocessing(source_dict)
 
-    answers = input['contextual_answer'].values.tolist()
+    answers = input["contextual_answer"].values.tolist()
 
     target_dict = tokenizer(answers,  # Sentence to encode.
                             add_special_tokens=True,  # Add '[CLS]' and '[SEP]'
-                            max_length=17,      # Pad & truncate all sentences.
+                            max_length=32,      # Pad & truncate all sentences.
                             padding='max_length',
                             # Construct attn. masks.
                             return_attention_mask=True,
@@ -309,11 +314,12 @@ def evaluate(training_elements: TrainingElements, config: TrainingConfig,
 
     exact_match_metric = load("exact_match")
 
+    predictions_old = []
     predictions = []
     ground_truth = []
     all_questions = []
 
-    for batch in tqdm(data_loader):
+    for batch in tqdm(data_loader):        
         src_ids = batch[0].to(config.device)
         src_am = batch[1].to(config.device)
         trg_ids = batch[2].to(config.device)
@@ -332,14 +338,20 @@ def evaluate(training_elements: TrainingElements, config: TrainingConfig,
             generated_ids = training_elements.model.generate(
                 input_ids=src_ids,
                 attention_mask=src_am,
+                max_length=config.max_length,
+                repetition_penalty=config.repetition_penalty,
+                length_penalty=config.length_penalty,
+                early_stopping=config.early_stopping, 
+                use_cache=config.use_cache,
                 **kwargs
             )
 
         preds = training_elements.tokenizer.batch_decode(
             generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
 
-        predictions.extend(preds)
-        ground_truth.extend(target)
+        predictions.extend( [ ev.normalize_answer(p) for p in preds ] )
+        ground_truth.extend( [ ev.normalize_answer(t) for t in target ] )
+        
         all_questions.extend(questions)
 
         torch.cuda.empty_cache()
@@ -347,6 +359,7 @@ def evaluate(training_elements: TrainingElements, config: TrainingConfig,
     if verbose:
         print(all_questions)
         print(predictions)
+        #print(predictions_old)
         print(ground_truth)
 
     exact_match_acc = exact_match_metric.compute(
@@ -395,11 +408,11 @@ def validate(training_elements: TrainingElements, training_data: TrainingData,
             print(f'\t{key=} e={current_epoch}, {exact_match_acc=}')
 
         results_table = wandb.Table(columns=["Method(Dataset)", "Factual", "Counterfactual", "Empty", "Random"], 
-            data=[[f'{training_config.tuning}({training_config.dataset_type})', 
+            data=[[f'{training_config.tuning_method}({training_config.dataset_type})', 
                 results['Factual'], results['Counterfactual'], results['Empty'], results['Random']]])
 
         for col in results_table.columns[1:]:
-            bar = wandb.plot.bar(results_table, 'Method', col, title=f'EM accuracy on {col}')
+            bar = wandb.plot.bar(results_table, 'Method(Dataset)', col, title=f'EM accuracy on {col}')
             wandb.log({f"{col}_bar": bar})
 
         wandb.log({"results_table": results_table})
@@ -411,12 +424,8 @@ def train_step(training_elements: TrainingElements, config: TrainingConfig,
 
     torch.cuda.empty_cache()
 
-    src_ids = train_batch[0].to(0)
-    src_am = train_batch[1].to(0)
-    trg_ids = train_batch[2].to(0)
-
-    lm_labels = trg_ids.clone().detach()
-    lm_labels[trg_ids == training_elements.tokenizer.pad_token_id] = -100
+    src_ids, src_am, lm_labels = unroll_batch( train_batch, 
+        config.device, training_elements.tokenizer.pad_token_id )
 
     with autocast(dtype=torch.bfloat16, enabled=config.FP16):
         loss = training_elements.model(
@@ -447,6 +456,16 @@ def train_step(training_elements: TrainingElements, config: TrainingConfig,
 
     return loss.item()
 
+def unroll_batch( batch, device: torch.device, pad_token_id ):
+    input_ids = batch[0].to(device)
+    attention_mast = batch[1].to(device)
+    target_ids = batch[2].to(device)
+
+    labels = target_ids.clone().detach()
+    labels[target_ids == pad_token_id] = -100
+
+
+    return input_ids, attention_mast, labels
 
 def deduce_device() -> torch.device:
     device = torch.device("cpu")
@@ -458,4 +477,4 @@ def get_dataset_name_choices() -> List[str]:
     return ['s(f)', 's(f+cf)', 's(f+a)', 's(f+cf+a)']
 
 def get_model_name_choices() -> List[str]:
-    return ['large', 'xl', 'xxl']
+    return ['large', 'xl', 'xxl', 'small', 'base']

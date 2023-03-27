@@ -62,7 +62,7 @@ def create_T5_model(model_name: str, tokenizer: T5Tokenizer, adapter_name: str, 
 def create_stuff(config: TrainingConfig, checkpoint: str = None):
 
     tokenizer = common_utils.create_tokenizer(model_name=config.model_name)
-    training_data = TrainingData(config=config, tokenizer=tokenizer)
+    training_data = CustomTrainingData(config=config, tokenizer=tokenizer)
 
     print_gpu_utilization()
     training_elems = TrainingElements(
@@ -73,61 +73,103 @@ def create_stuff(config: TrainingConfig, checkpoint: str = None):
 
     return training_elems, training_data
 
+class CustomTrainingData:
+    def __init__(self, config: TrainingConfig,
+                 allowed_test_sets: List[int] = ['f', 'cf', 'a(e)', 'a(r)'], **kwargs):
 
-# def create_optimizer_for_prefix(model: T5ForConditionalGeneration, number_of_data_points: int):
-#     print("Used OPTIMIZER for prefix tuning")
+        test_mapping = {'factual': 'f', 'counterfactual': 'cf',
+                        'closed_book': 'a(e)', 'random_context': 'a(r)'}
 
-#     # all this code is based on prefix-tuning paper
-#     optimizer = AdamW(model.parameters(), lr=5e-5)
+        train_set, val_set, test_set = get_data(
+            config.dataset_type, test_mapping)
 
-#     num_epochs = 10
-#     num_training_steps = num_epochs * number_of_data_points
-    
-#     lr_scheduler = get_scheduler(
-#         "linear",
-#         optimizer=optimizer,
-#         num_warmup_steps=0,
-#         num_training_steps=num_training_steps,
-#     )
+        print(
+            f'TrainingData: {len(train_set)=} {len(val_set)=} {len(test_set)=}')
 
-#     return optimizer, lr_scheduler
+        self.train_loader = DataLoader(PandasDataset(train_set[train_set['type'] == 'factual']), 
+            collate_fn=lambda inp: collate_fn(inp, max_source_input_len=256, **kwargs), batch_size=config.batch_size, num_workers=4, pin_memory=True)
 
-# def create_optimizer_for_adapter(model: T5ForConditionalGeneration, number_of_data_points: int):
-#     print("Used OPTIMIZER for adapters tuning")
 
-#     # partially based on adapter paper
-#     optimizer = AdamW(model.parameters(), lr=5e-5)
+        # sampler = RandomSampler(PandasDataset(
+        #     train_set[train_set['type'] == 'counterfactual']), replacement=True)
 
-#     num_epochs = 10
-#     num_training_steps = num_epochs * number_of_data_points
-    
-#     lr_scheduler = get_scheduler(
-#         "linear",
-#         optimizer=optimizer,
-#         num_warmup_steps=number_of_data_points * 0.1,
-#         num_training_steps=num_training_steps,
-#     )
+        # self.cf_train_loader = DataLoader(PandasDataset(train_set[train_set['type'] == 'counterfactual']), sampler=sampler,
+        #     collate_fn=lambda inp: collate_fn(inp, max_source_input_len=256, **kwargs), max_source_input_len=256, batch_size=config.batch_size, num_workers=4, pin_memory=True)
 
-#     return optimizer, lr_scheduler
+        #print(len(self.f_train_loader), len(self.cf_train_loader))
 
-# def create_optimizer_for_lora(model: T5ForConditionalGeneration, number_of_data_points: int):
-#     print("Used OPTIMIZER for lora tuning")
-#     return common_utils.create_optimizer( model ), None
+        self.val_loader = DataLoader(PandasDataset(val_set), collate_fn=lambda inp: collate_fn(
+            inp, max_source_input_len=256, **kwargs), batch_size=config.eval_batch_size, num_workers=4, pin_memory=True)
 
-#     # # all this code is based on lora paper
-#     # optimizer = AdamW(model.parameters(), lr=0.0002, weight_decay=0.01)
+        self.test_loaders = {}
+        for k in test_set:
+            if k not in allowed_test_sets:
+                continue
 
-#     # num_epochs = 5
-#     # num_training_steps = num_epochs * number_of_data_points
-    
-#     # lr_scheduler = get_scheduler(
-#     #     "linear",
-#     #     optimizer=optimizer,
-#     #     num_warmup_steps=500,
-#     #     num_training_steps=num_training_steps,
-#     # )
+            self.test_loaders[k] = DataLoader(PandasDataset(test_set[k]), collate_fn=lambda inp: collate_fn(
+                inp, max_source_input_len=396, **kwargs), batch_size=config.eval_batch_size, num_workers=4, pin_memory=True)
 
-#     # return optimizer, lr_scheduler
+    def to_readable_name(self, abbreviation: str):
+        if abbreviation == 'f': 
+            return "Factual"
+        elif abbreviation == 'cf': 
+            return "Counterfactual"
+        elif abbreviation == 'a(e)': 
+            return "Empty"
+        elif abbreviation == 'a(r)': 
+            return "Random"
+
+def train_step(training_elements: TrainingElements, config: TrainingConfig,
+               train_batch, batch_idx: int, need_to_optimize: bool, **kwargs):
+
+    torch.cuda.empty_cache()
+
+    # cf_src_ids, cf_src_am, cf_lm_labels = unroll_batch( counterfactual_batch, 
+    #     config.device, training_elements.tokenizer.pad_token_id )
+
+    # target = training_elements.tokenizer.batch_decode(
+    #     cf_trg_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
+
+    # print(f'TestCF: {target}')
+
+    src_ids, src_am, lm_labels = unroll_batch( train_batch, 
+        config.device, training_elements.tokenizer.pad_token_id )
+
+    with autocast(dtype=torch.bfloat16, enabled=config.FP16):
+        loss = training_elements.model(
+            input_ids=src_ids,
+            attention_mask=src_am,
+            labels=lm_labels.to(f'cuda:{config.num_gpus-1}'),
+            **kwargs
+        )[0]
+
+        # loss2 = training_elements.model(
+        #     input_ids=cf_src_ids,
+        #     attention_mask=cf_src_am,
+        #     labels=cf_lm_labels.to(f'cuda:{config.num_gpus-1}'),
+        #     **kwargs
+        # )[0]
+
+        # reguralizer = 0.25
+        
+        #loss = loss1 + reguralizer * loss2 # 0.25 comes from undersensitivity paper
+
+    # normalize loss to account for batch accumulation
+    loss = loss / config.gradient_accumulation_steps
+
+    training_elements.scaler.scale(loss).backward()
+
+    if need_to_optimize:
+        training_elements.scaler.step(training_elements.optimizer)
+        training_elements.scaler.update()
+        training_elements.optimizer.zero_grad()
+
+    if batch_idx % config.gpu_stat_every == 0:
+        print_gpu_utilization()
+        torch.cuda.empty_cache()
+
+    return loss.item()
+
 
 
 def run(config: TrainingConfig, adapter_name: str) -> float:
@@ -156,8 +198,13 @@ def run(config: TrainingConfig, adapter_name: str) -> float:
             for batch_idx, train_batch in enumerate(training_data.train_loader, 1):
                 need_to_optimize = ((batch_idx + 1) % config.gradient_accumulation_steps ==
                                     0) or (batch_idx + 1 == len(training_data.train_loader))
+
+                # for batch_idx, batch in enumerate(training_data.cf_train_loader, 1):
+                #     counterfactual_batch = batch
+
+                #     break
                 loss = train_step(training_elements=training_elems,
-                                  config=config, train_batch=train_batch,
+                                  config=config, train_batch=train_batch, # counterfactual_batch=counterfactual_batch,
                                   batch_idx=batch_idx, need_to_optimize=need_to_optimize)
 
                 losses.append(loss)

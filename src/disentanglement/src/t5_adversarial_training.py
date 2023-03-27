@@ -42,6 +42,16 @@ class CustomTrainingData:
             self.test_loaders[k] = DataLoader(PandasDataset(test_set[k]), collate_fn=lambda inp: collate_fn(
                 inp, **kwargs), batch_size=config.eval_batch_size, num_workers=4, pin_memory=True)
 
+    def to_readable_name(self, abbreviation: str):
+        if abbreviation == 'f': 
+            return "Factual"
+        elif abbreviation == 'cf': 
+            return "Counterfactual"
+        elif abbreviation == 'a(e)': 
+            return "Empty"
+        elif abbreviation == 'a(r)': 
+            return "Random"
+
 
 
 def get_aliases():
@@ -79,31 +89,21 @@ def create_stuff(config: TrainingConfig, checkpoint: str = None):
 
     return training_elems, training_data
 
-
 def train_step(training_elements: TrainingElements, config: TrainingConfig,
                train_batch, counterfactual_batch, batch_idx: int, need_to_optimize: bool, **kwargs):
 
     torch.cuda.empty_cache()
 
-    cf_src_ids = counterfactual_batch[0].to(0)
-    cf_src_am = counterfactual_batch[1].to(0)
-    cf_trg_ids = counterfactual_batch[2].to(0)
-
-    cf_lm_labels = cf_trg_ids.clone().detach()
-    cf_lm_labels[cf_trg_ids ==
-                   training_elements.tokenizer.pad_token_id] = -100
+    cf_src_ids, cf_src_am, cf_lm_labels = unroll_batch( counterfactual_batch, 
+        config.device, training_elements.tokenizer.pad_token_id )
 
     # target = training_elements.tokenizer.batch_decode(
     #     cf_trg_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
 
     # print(f'TestCF: {target}')
 
-    src_ids = train_batch[0].to(0)
-    src_am = train_batch[1].to(0)
-    trg_ids = train_batch[2].to(0)
-
-    lm_labels = trg_ids.clone().detach()
-    lm_labels[trg_ids == training_elements.tokenizer.pad_token_id] = -100
+    src_ids, src_am, lm_labels = unroll_batch( train_batch, 
+        config.device, training_elements.tokenizer.pad_token_id )
 
     with autocast(dtype=torch.bfloat16, enabled=config.FP16):
         loss1 = training_elements.model(
@@ -120,7 +120,10 @@ def train_step(training_elements: TrainingElements, config: TrainingConfig,
             **kwargs
         )[0]
 
-        loss = loss1 + 0.25 * loss2 # 0.25 comes from undersensitivity paper
+        reguralizer = 1 #0.25
+        #print(f'{reguralizer}')
+        
+        loss = loss1 + reguralizer * loss2 # 0.25 comes from undersensitivity paper
 
     # normalize loss to account for batch accumulation
     loss = loss / config.gradient_accumulation_steps
@@ -160,10 +163,23 @@ def run(config: TrainingConfig, alias: str):
                 need_to_optimize = ((batch_idx + 1) % config.gradient_accumulation_steps ==
                                     0) or (batch_idx + 1 == len(training_data.f_train_loader))
 
+                # !!! ORIGINAL VERSION
                 for batch_idx, batch in enumerate(training_data.cf_train_loader, 1):
                     counterfactual_batch = batch
 
                     break
+
+                # !!! EXPERIMENT-1
+                # for batch_idx, batch in enumerate(training_data.f_train_loader, 1):
+                #     counterfactual_batch = batch
+
+                #     break
+
+                # !!! EXPERIMENT-2
+                # for batch_idx, batch in enumerate(training_data.cf_train_loader, 1):
+                #     counterfactual_batch = batch
+
+                #     break
 
                 loss = train_step(training_elements=training_elems,
                                   config=config, train_batch=train_batch, counterfactual_batch=counterfactual_batch,
