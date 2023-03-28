@@ -6,52 +6,24 @@ from utils import *
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 
 
-class CustomTrainingData:
+class CustomTrainingData(TrainingData):
     def __init__(self, config: TrainingConfig,
                  allowed_test_sets: List[int] = ['f', 'cf', 'a(e)', 'a(r)'], **kwargs):
 
-        test_mapping = {'factual': 'f', 'counterfactual': 'cf',
-                        'closed_book': 'a(e)', 'random_context': 'a(r)'}
+        super().__init__(config, allowed_test_sets, **kwargs)
 
-        train_set, val_set, test_set = get_data(
-            config.dataset_type, test_mapping)
-
-        print(
-            f'TrainingData: {len(train_set)=} {len(val_set)=} {len(test_set)=}')
+        train_set = self.train_loader.dataset.get_dataframe()
 
         self.f_train_loader = DataLoader(PandasDataset(train_set[train_set['type'] == 'factual']), 
-            collate_fn=lambda inp: collate_fn(inp, **kwargs), batch_size=config.batch_size, num_workers=4, pin_memory=True)
-
+            collate_fn=lambda inp: collate_fn(inp, max_source_input_len=256, **kwargs), batch_size=config.batch_size, num_workers=4, pin_memory=True)
 
         sampler = RandomSampler(PandasDataset(
             train_set[train_set['type'] == 'counterfactual']), replacement=True)
 
         self.cf_train_loader = DataLoader(PandasDataset(train_set[train_set['type'] == 'counterfactual']), sampler=sampler,
-            collate_fn=lambda inp: collate_fn(inp, **kwargs), batch_size=config.batch_size, num_workers=4, pin_memory=True)
+            collate_fn=lambda inp: collate_fn(inp, max_source_input_len=256, **kwargs), batch_size=config.batch_size, num_workers=4, pin_memory=True)
 
         print(len(self.f_train_loader), len(self.cf_train_loader))
-
-        self.val_loader = DataLoader(PandasDataset(val_set), collate_fn=lambda inp: collate_fn(
-            inp, **kwargs), batch_size=config.eval_batch_size, num_workers=4, pin_memory=True)
-
-        self.test_loaders = {}
-        for k in test_set:
-            if k not in allowed_test_sets:
-                continue
-
-            self.test_loaders[k] = DataLoader(PandasDataset(test_set[k]), collate_fn=lambda inp: collate_fn(
-                inp, **kwargs), batch_size=config.eval_batch_size, num_workers=4, pin_memory=True)
-
-    def to_readable_name(self, abbreviation: str):
-        if abbreviation == 'f': 
-            return "Factual"
-        elif abbreviation == 'cf': 
-            return "Counterfactual"
-        elif abbreviation == 'a(e)': 
-            return "Empty"
-        elif abbreviation == 'a(r)': 
-            return "Random"
-
 
 
 def get_aliases():
@@ -97,11 +69,6 @@ def train_step(training_elements: TrainingElements, config: TrainingConfig,
     cf_src_ids, cf_src_am, cf_lm_labels = unroll_batch( counterfactual_batch, 
         config.device, training_elements.tokenizer.pad_token_id )
 
-    # target = training_elements.tokenizer.batch_decode(
-    #     cf_trg_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
-
-    # print(f'TestCF: {target}')
-
     src_ids, src_am, lm_labels = unroll_batch( train_batch, 
         config.device, training_elements.tokenizer.pad_token_id )
 
@@ -120,8 +87,7 @@ def train_step(training_elements: TrainingElements, config: TrainingConfig,
             **kwargs
         )[0]
 
-        reguralizer = 1 #0.25
-        #print(f'{reguralizer}')
+        reguralizer = 0.25
         
         loss = loss1 + reguralizer * loss2 # 0.25 comes from undersensitivity paper
 
@@ -163,23 +129,10 @@ def run(config: TrainingConfig, alias: str):
                 need_to_optimize = ((batch_idx + 1) % config.gradient_accumulation_steps ==
                                     0) or (batch_idx + 1 == len(training_data.f_train_loader))
 
-                # !!! ORIGINAL VERSION
                 for batch_idx, batch in enumerate(training_data.cf_train_loader, 1):
                     counterfactual_batch = batch
 
                     break
-
-                # !!! EXPERIMENT-1
-                # for batch_idx, batch in enumerate(training_data.f_train_loader, 1):
-                #     counterfactual_batch = batch
-
-                #     break
-
-                # !!! EXPERIMENT-2
-                # for batch_idx, batch in enumerate(training_data.cf_train_loader, 1):
-                #     counterfactual_batch = batch
-
-                #     break
 
                 loss = train_step(training_elements=training_elems,
                                   config=config, train_batch=train_batch, counterfactual_batch=counterfactual_batch,

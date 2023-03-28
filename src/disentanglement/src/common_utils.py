@@ -14,7 +14,7 @@ def create_optimizer(model: T5ForConditionalGeneration):
     # return AdamW(model.parameters(), lr=0.0001), None
     return Adafactor(
         model.parameters(),
-        lr=0.001,
+        lr=0.0001,
         eps=(1e-30, 1e-3),
         clip_threshold=1.0,
         decay_rate=-0.8,

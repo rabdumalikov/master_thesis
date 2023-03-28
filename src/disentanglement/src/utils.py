@@ -129,6 +129,9 @@ class PandasDataset(Dataset):
     def __len__(self):
         return len(self.dataframe)
 
+    def get_dataframe(self):
+        return self.dataframe
+        
     def __getitem__(self, index):
         return self.dataframe.iloc[index]
 

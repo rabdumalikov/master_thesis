@@ -73,6 +73,6 @@ def run(config: TrainingConfig, alias: str):
         print(f'{loss=}')
 
         best_em_score = validate(training_elems, training_data, config,
-                                 e, loss, config.model_saving_folder, best_em_score, verbose=True)
+                                 e, loss, config.model_saving_folder, best_em_score, verbose=False)
 
     return best_em_score
