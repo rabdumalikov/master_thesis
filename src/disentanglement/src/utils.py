@@ -72,6 +72,7 @@ class TrainingConfig:
         self.length_penalty = 1.0
         self.early_stopping = True
         self.use_cache = True
+        self.gradient_checkpointing_enable = True
 
 
 class TrainingData:
@@ -113,12 +114,11 @@ class TrainingData:
 
 
 class TrainingElements:
-    def __init__(self, model: T5ForConditionalGeneration, tokenizer: T5Tokenizer, scaler: GradScaler, optimizer, prompt_model=None):
+    def __init__(self, model: T5ForConditionalGeneration, tokenizer: T5Tokenizer, optimizer, prompt_model=None):
         self.model = model
         self.tokenizer = tokenizer
-        self.scaler = scaler
-        self.optimizer, self.scheduler = optimizer(
-            prompt_model if prompt_model is not None else model)
+        self.scaler = torch.cuda.amp.GradScaler()
+        self.optimizer, self.scheduler = optimizer
         self.prompt_model = prompt_model
 
 
