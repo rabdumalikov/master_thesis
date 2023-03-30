@@ -75,7 +75,8 @@ def main():
         epochs=utils.get_number_of_epochs(args.epochs),
         model_saving_folder=args.save_in,
         FP16=args.fp16,
-        tuning_method=args.tuning
+        tuning_method=args.tuning,
+        gpu_name=args.gpu_name
     )
 
     # start a new wandb run to track this script

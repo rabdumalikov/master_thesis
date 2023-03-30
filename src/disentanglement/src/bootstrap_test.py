@@ -8,7 +8,7 @@ import common_utils
 from torch.utils.data import DataLoader
 
 from t5_finetuning_class import Finetuning
-from t5_promptuning2_class import PromptTuning
+from t5_promptuning_class import PromptTuning
 from t5_lightweight_tuning_class import LightweightTuning
 from t5_adversarial_training_class import AdversarialTraining
 from t5_inctxlearning_class import InCtxLearning
@@ -68,7 +68,8 @@ def main():
                             device=deduce_device(), 
                             epochs=100, 
                             model_saving_folder='',
-                            tuning_method=args.tuning
+                            tuning_method=args.tuning,
+                            gpu_name=args.gpu_name
                 )
 
     print(config)

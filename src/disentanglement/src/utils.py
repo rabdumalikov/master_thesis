@@ -51,6 +51,7 @@ class TrainingConfig:
                  epochs: int,
                  model_saving_folder: str,
                  tuning_method: str,
+                 gpu_name: str,
                  FP16: bool = False ):
 
         self.model_name = model_name
@@ -75,6 +76,7 @@ class TrainingConfig:
         self.gradient_checkpointing_enable = True
         self.data_usage_percentage = 1.0
         self.is_wandb_sweep = False
+        self.gpu_name = gpu_name
 
         self.tuning_settings = {'learning_rate': 0.0001, 
             'type_of_optimizer': 'adafactor',
@@ -353,17 +355,23 @@ def evaluate(training_elements: TrainingElements, config: TrainingConfig,
                 0), device=config.device)
             kwargs['prompt'] = prompt
 
-        #with autocast(dtype=torch.bfloat16, enabled=config.FP16):
-        generated_ids = training_elements.model.generate(
-            input_ids=src_ids,
-            attention_mask=src_am,
-            max_length=config.max_length,
-            repetition_penalty=config.repetition_penalty,
-            length_penalty=config.length_penalty,
-            early_stopping=config.early_stopping, 
-            use_cache=config.use_cache,
-            **kwargs
-        )
+        def generate():
+            return training_elements.model.generate(
+                input_ids=src_ids,
+                attention_mask=src_am,
+                max_length=config.max_length,
+                repetition_penalty=config.repetition_penalty,
+                length_penalty=config.length_penalty,
+                early_stopping=config.early_stopping, 
+                use_cache=config.use_cache,
+                **kwargs
+            )
+
+        if config.gpu_name == 'tesla':
+            generated_ids = generate()
+        else:
+            with autocast(dtype=torch.bfloat16, enabled=config.FP16):
+                generated_ids = generate()
 
         preds = training_elements.tokenizer.batch_decode(
             generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
@@ -378,7 +386,6 @@ def evaluate(training_elements: TrainingElements, config: TrainingConfig,
     if verbose:
         print(all_questions)
         print(predictions)
-        #print(predictions_old)
         print(ground_truth)
 
     exact_match_acc = exact_match_metric.compute(
@@ -450,14 +457,20 @@ def train_step(training_elements: TrainingElements, config: TrainingConfig,
     src_ids, src_am, lm_labels = unroll_batch( train_batch, 
         config.device, training_elements.tokenizer.pad_token_id )
 
-    #with autocast(dtype=torch.bfloat16, enabled=config.FP16):
-    loss = training_elements.model(
-        input_ids=src_ids,
-        attention_mask=src_am,
-        #decoder_input_ids=trg_ids[:, :-1], labels=None,
-        labels=lm_labels.to(f'cuda:{config.num_gpus-1}'),
-        **kwargs
-    )[0]
+    def get_loss():
+        return training_elements.model(
+            input_ids=src_ids,
+            attention_mask=src_am,
+            #decoder_input_ids=trg_ids[:, :-1], labels=None,
+            labels=lm_labels.to(f'cuda:{config.num_gpus-1}'),
+            **kwargs
+            )[0]
+
+    if config.gpu_name == 'tesla':
+        loss = get_loss()
+    else:
+        with autocast(dtype=torch.bfloat16, enabled=config.FP16):
+            loss = get_loss()
 
     # normalize loss to account for batch accumulation
     loss = loss / config.gradient_accumulation_steps

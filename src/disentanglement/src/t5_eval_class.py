@@ -62,7 +62,8 @@ def main():
                             device=deduce_device(), 
                             epochs=100, 
                             model_saving_folder='',
-                            tuning_method=args.tuning
+                            tuning_method=args.tuning,
+                            gpu_name=args.gpu_name
                 )
 
     print(config)
