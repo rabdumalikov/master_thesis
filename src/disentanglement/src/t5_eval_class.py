@@ -5,7 +5,7 @@ import pandas as pd
 import common_utils
 
 from t5_finetuning_class import Finetuning
-from t5_promptuning2_class import PromptTuning
+from t5_promptuning_class import PromptTuning
 from t5_lightweight_tuning_class import LightweightTuning
 from t5_adversarial_training_class import AdversarialTraining
 from t5_inctxlearning_class import InCtxLearning

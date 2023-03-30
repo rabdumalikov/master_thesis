@@ -34,7 +34,7 @@ def main():
     parser = argparse.ArgumentParser(description='MasterThesis')
 
     # Add the positional argument
-    parser.add_argument('-n', '--number_trials')
+    parser.add_argument('-n', '--number_trials', type=int)
     parser.add_argument('-m', '--model_name', nargs='?',
                         default='large', choices=utils.get_model_name_choices())
     parser.add_argument('--dataset_type', type=str,
