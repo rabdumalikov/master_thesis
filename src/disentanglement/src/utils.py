@@ -73,6 +73,16 @@ class TrainingConfig:
         self.early_stopping = True
         self.use_cache = True
         self.gradient_checkpointing_enable = True
+        self.data_usage_percentage = 1.0
+        self.is_wandb_sweep = False
+
+        self.tuning_settings = {'learning_rate': 0.0001, 
+            'type_of_optimizer': 'adafactor',
+            'prompt_length': 100,
+            'prefix_length': 100, 
+            'lora_r': 8, 
+            'lora_alpha': 32, 
+            'adapter_reduction_factor': 16 }
 
 
 class TrainingData:
@@ -85,6 +95,9 @@ class TrainingData:
 
         train_set, val_set, test_set = get_data(
             config.dataset_type, test_mapping)
+
+        train_set = train_set[:int(len(train_set)*config.data_usage_percentage)]
+        val_set = val_set[:int(len(val_set)*config.data_usage_percentage)]
 
         print(
             f'TrainingData: {len(train_set)=} {len(val_set)=} {len(test_set)=}')
@@ -208,7 +221,10 @@ def get_data(dataset_type: str, mapping: Dict[str, str]) -> Tuple[pd.DataFrame, 
 
 
 def get_model_name(short_name: str) -> str:
-    return f't5-{short_name}'
+
+    mapping = {'large': 'large', 'xxl': '11b', 'xl': '3b'}
+    return f't5-{mapping[short_name]}'
+
     #return f'google/t5-{short_name}-lm-adapt'
     #return f'google/t5-v1_1-{short_name}'
     # names = {
@@ -337,17 +353,17 @@ def evaluate(training_elements: TrainingElements, config: TrainingConfig,
                 0), device=config.device)
             kwargs['prompt'] = prompt
 
-        with autocast(dtype=torch.bfloat16, enabled=config.FP16):
-            generated_ids = training_elements.model.generate(
-                input_ids=src_ids,
-                attention_mask=src_am,
-                max_length=config.max_length,
-                repetition_penalty=config.repetition_penalty,
-                length_penalty=config.length_penalty,
-                early_stopping=config.early_stopping, 
-                use_cache=config.use_cache,
-                **kwargs
-            )
+        #with autocast(dtype=torch.bfloat16, enabled=config.FP16):
+        generated_ids = training_elements.model.generate(
+            input_ids=src_ids,
+            attention_mask=src_am,
+            max_length=config.max_length,
+            repetition_penalty=config.repetition_penalty,
+            length_penalty=config.length_penalty,
+            early_stopping=config.early_stopping, 
+            use_cache=config.use_cache,
+            **kwargs
+        )
 
         preds = training_elements.tokenizer.batch_decode(
             generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
@@ -387,6 +403,10 @@ def validate(training_elements: TrainingElements, training_data: TrainingData,
 
     wandb.log({'epoch': current_epoch,
                 'loss': loss, f'val_EM_acc': val_exact_match_acc})
+
+    if training_config.is_wandb_sweep:
+        print("Skipped evaluation on the TEST set")
+        return val_exact_match_acc if val_exact_match_acc > best_em_score else best_em_score
 
     if val_exact_match_acc > best_em_score:
 
@@ -430,14 +450,14 @@ def train_step(training_elements: TrainingElements, config: TrainingConfig,
     src_ids, src_am, lm_labels = unroll_batch( train_batch, 
         config.device, training_elements.tokenizer.pad_token_id )
 
-    with autocast(dtype=torch.bfloat16, enabled=config.FP16):
-        loss = training_elements.model(
-            input_ids=src_ids,
-            attention_mask=src_am,
-            #decoder_input_ids=trg_ids[:, :-1], labels=None,
-            labels=lm_labels.to(f'cuda:{config.num_gpus-1}'),
-            **kwargs
-        )[0]
+    #with autocast(dtype=torch.bfloat16, enabled=config.FP16):
+    loss = training_elements.model(
+        input_ids=src_ids,
+        attention_mask=src_am,
+        #decoder_input_ids=trg_ids[:, :-1], labels=None,
+        labels=lm_labels.to(f'cuda:{config.num_gpus-1}'),
+        **kwargs
+    )[0]
 
     # normalize loss to account for batch accumulation
     loss = loss / config.gradient_accumulation_steps
@@ -481,3 +501,29 @@ def get_dataset_name_choices() -> List[str]:
 
 def get_model_name_choices() -> List[str]:
     return ['large', 'xl', 'xxl', 'small', 'base']
+
+
+def find_best_checkpoint(id: int):
+    dir_path = f'.builds/{id}/models'
+
+    checkpoint_name = ''
+    best_em = -1
+    # iterate over all the directories in the specified directory
+    for dir_name in os.listdir(dir_path):
+
+        if os.path.isdir(os.path.join(dir_path, dir_name)):
+
+            with open(dir_path + '/' + dir_name  + '/' + 'results.txt', 'r') as f:
+                d = {}
+                for l in f.readlines():
+                    key, value = l.split('=')
+                    d[key] = value
+                    
+
+                if float(d['em']) > best_em:
+                    best_em = float(d['em'])
+                    checkpoint_name = dir_name
+
+                    print(f'Best checkpoint {checkpoint_name} with em={best_em}')
+
+    return dir_path + '/' + checkpoint_name

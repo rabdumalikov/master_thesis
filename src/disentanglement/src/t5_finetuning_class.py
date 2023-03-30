@@ -48,7 +48,8 @@ class Finetuning:
 
 
     def create_optimizer(self, model: T5ForConditionalGeneration):
-        return common_utils.create_optimizer(model)
+        return common_utils.create_optimizer(model, self.config.tuning_settings['learning_rate'],
+            self.config.tuning_settings['type_of_optimizer'])
 
     def create_T5_model(self, checkpoint: str) -> T5ForConditionalGeneration:
 
@@ -69,8 +70,8 @@ class Finetuning:
             print(f'{k=} {acc=}')
 
     def train(self):
-
-        print("Training started...")
+        
+        print(f"Training started...")
         print(f'{self.config.model_name=} {self.config.tuning_method=} {self.config.batch_size=} {self.config.epochs=}')
 
         best_em_score = 0.0
@@ -85,7 +86,6 @@ class Finetuning:
             
             with TimeMeasure(epoch=e, steps=steps):
                 for batch_idx, train_batch in enumerate(self.training_data.train_loader, 1):
-
                     loss = train_step(training_elements=self.training_elems,
                                     config=self.config, train_batch=train_batch,
                                     batch_idx=batch_idx, need_to_optimize=self.need_to_optimize(batch_idx))

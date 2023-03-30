@@ -23,7 +23,7 @@ class InCtxLearning(Finetuning):
 
         super().__init__(config, checkpoint, closure=InCtxLearning.preprocess_input)        
 
-    def train(self):
+    def train(self, is_wandb_sweep = False):
 
         # I want to try another T5 version with unlearned span corruption
         #config.model_name = 'google/t5-xxl-lm-adapt'

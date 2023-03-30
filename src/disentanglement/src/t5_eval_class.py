@@ -13,32 +13,6 @@ from t5_inctxlearning_class import InCtxLearning
 from utils import *
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 
-def find_best_checkpoint(id: int):
-    dir_path = f'.builds/{id}/models'
-
-    checkpoint_name = ''
-    best_em = -1
-    # iterate over all the directories in the specified directory
-    for dir_name in os.listdir(dir_path):
-
-        if os.path.isdir(os.path.join(dir_path, dir_name)):
-
-            with open(dir_path + '/' + dir_name  + '/' + 'results.txt', 'r') as f:
-                d = {}
-                for l in f.readlines():
-                    key, value = l.split('=')
-                    d[key] = value
-                    
-
-                if float(d['em']) > best_em:
-                    best_em = float(d['em'])
-                    checkpoint_name = dir_name
-
-                    print(f'Best checkpoint {checkpoint_name} with em={best_em}')
-
-    return dir_path + '/' + checkpoint_name
-
-
 def main():
 
     tuning_choices = [
@@ -76,7 +50,7 @@ def main():
     args = parser.parse_args()
 
 
-    checkpoint = find_best_checkpoint(args.checkpoint_id) #275
+    checkpoint = utils.find_best_checkpoint(args.checkpoint_id)
     with open(checkpoint+'/results.txt', 'r') as f:
         print(f.readlines())
 

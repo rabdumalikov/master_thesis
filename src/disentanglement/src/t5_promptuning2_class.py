@@ -13,7 +13,7 @@ from t5_finetuning_class import Finetuning
 class PromptEmbedding(nn.Module):
     def __init__(self,
                  wte: nn.Embedding,
-                 prompt_length: int = 10,
+                 prompt_length: int,
                  random_range: float = 0.5,
                  initialize_from_vocab: bool = True):
         super(PromptEmbedding, self).__init__()
@@ -27,7 +27,7 @@ class PromptEmbedding(nn.Module):
 
     def initialize_embedding(self,
                              wte: nn.Embedding,
-                             prompt_length: int = 10,
+                             prompt_length: int,
                              random_range: float = 0.5,
                              initialize_from_vocab: bool = True):
         if initialize_from_vocab:
@@ -55,7 +55,9 @@ class PromptTuning(Finetuning):
 
     def __init__(self, config: TrainingConfig, checkpoint: str = None):
 
-        self.prompt_len = 100 # from paper: 'going beyong 20 prompt tokens only yields marginal gains'.
+        config.tuning_settings['learning_rate'] = 0.00006483
+        #self.prompt_len = config.tuning_settings['prompt_length'] # from paper: 'going beyong 20 prompt tokens only yields marginal gains'.
+        self.prompt_len = 138 # from wandb-sweep
 
         def postprocessing(source):
             fake_prompt = torch.ones((source['input_ids'].size(0), self.prompt_len),

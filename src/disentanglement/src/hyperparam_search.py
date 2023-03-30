@@ -1,16 +1,18 @@
 import os
 import wandb
-import argparse
+import torch
 import utils
+import random
+import argparse
 import numpy as np
-import t5_finetuning
-import t5_promptuning2
-import t5_inctxlearning
-import t5_lightweight_tuning
-import t5_adversarial_training
+
+from t5_finetuning_class import Finetuning
+from t5_promptuning2_class import PromptTuning
+from t5_lightweight_tuning_class import LightweightTuning
+from t5_adversarial_training_class import AdversarialTraining
+from t5_inctxlearning_class import InCtxLearning
 
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
-
 
 def get_short_model_name(name):
     #choices = ['large', 'xl', 'xxl']
@@ -19,15 +21,19 @@ def get_short_model_name(name):
 
     return f'T5{short_name}'
 
-
 def main():
+    random.seed(42)
+    np.random.seed(0)
+    torch.manual_seed(0)
+    #torch.use_deterministic_algorithms(True)
+
     model_name_choices = utils.get_model_name_choices()
     tuning_choices = [
-        (t5_lightweight_tuning.get_aliases(), t5_lightweight_tuning.run),
-        (t5_finetuning.get_aliases(), t5_finetuning.run),
-        (t5_promptuning2.get_aliases(), t5_promptuning2.run),
-        (t5_inctxlearning.get_aliases(), t5_inctxlearning.run),
-        (t5_adversarial_training.get_aliases(), t5_adversarial_training.run),
+        (Finetuning.get_aliases(), Finetuning),
+        (PromptTuning.get_aliases(), PromptTuning),
+        (InCtxLearning.get_aliases(), InCtxLearning),
+        (LightweightTuning.get_aliases(), LightweightTuning),
+        (AdversarialTraining.get_aliases(), AdversarialTraining),
     ]
 
     all_tuning_choises = []
@@ -78,36 +84,56 @@ def main():
         tuning_method=args.tuning
     )
 
-    # start a new wandb run to track this script
-    wandb.init(
-        # set the wandb project where this run will be logged
-        project="MasterThesis",
-        id=str(args.process_id),
-        group='Experiment_1',
-        name=f'id[{args.process_id}]-[{args.tuning}]-on[{args.dataset_type}]-bs[{config.batch_size}]-{utils.get_model_name(config.model_name)}',
-        # track hyperparameters and run metadata
-        config=vars(config)
-    )
-
-    # T5L-[finetuning]-on[s(f+cf+a)]-id[200]
-    # T5L-[prefix-tuning]-on[s(f)]-id[201]
-    # T5L-[bottleneck-adapters]-on[s(f+cf+a)]-id[203]
-    # T5L-[lora]-on[s(f+cf+a)]-id[204]
-    # T5L-[promptuning]-on[s(f+cf+a)]-id[205]
-    # T5L-[adversarial-training]-on[s(f+cf+a)]-id[206]
-
     print("\n============================")
     print(f'ARGUMENTS: {args}')
     print("============================\n")
 
+    if config.tuning_method == 'promptuning':
+        # 2: Define the search space
+        sweep_configuration = {
+            'method': 'random',
+            'metric': {'goal': 'maximize', 'name': 'val_EM_acc'},
+            'parameters': 
+            {
+                'learning_rate': {'max': 0.0001, 'min': 0.000001},
+                'prompt_length': {'max': 200, 'min': 50},
+                'type_of_optimizer': {'values': ['adamw', 'adafactor']}
+            }
+        }
+    elif config.tuning_method == 'bottleneck_adapter':
+        # 2: Define the search space
+        sweep_configuration = {
+            'method': 'random',
+            'metric': {'goal': 'maximize', 'name': 'val_EM_acc'},
+            'parameters': 
+            {
+                'learning_rate': {'max': 0.0001, 'min': 0.000001},
+                'adapter_reduction_factor': {'max': 100, 'min': 16},
+                'type_of_optimizer': {'values': ['adamw', 'adafactor']}
+            }
+        }
+
+
+    config.data_usage_percentage = 0.1
+    config.epochs = 2
+    # 3: Start the sweep
+    sweep_id = wandb.sweep(sweep=sweep_configuration, project='Sweep')
+    
     for choice in tuning_choices:
         if args.tuning in choice[0]:
-            best_em_score = choice[1](config, args.tuning)
+            
+            def train():
+                wandb.init(project='Sweep')
 
-            print("\n============================\n")
-            print(f'{best_em_score=}')
+                for k in wandb.config.keys():
+                    config.tuning_settings[k] = wandb.config[k]
 
-            wandb.log({'best_em_score': best_em_score})
+                config.is_wandb_sweep = True
+                method = choice[1](config)
+                method.train()
+
+            wandb.agent(sweep_id, function=train, count=200)
+
             break
 
     wandb.finish()

@@ -1,51 +1,29 @@
 import utils
 import torch
 import argparse
+import numpy as np
 import pandas as pd
 import common_utils
-import t5_finetuning
-import t5_promptuning2
-import t5_inctxlearning
-import t5_lightweight_tuning
-import t5_adversarial_training
+
+from torch.utils.data import DataLoader
+
+from t5_finetuning_class import Finetuning
+from t5_promptuning2_class import PromptTuning
+from t5_lightweight_tuning_class import LightweightTuning
+from t5_adversarial_training_class import AdversarialTraining
+from t5_inctxlearning_class import InCtxLearning
 
 from utils import *
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 
-def find_best_checkpoint(id: int):
-    dir_path = f'.builds/{id}/models'
-
-    checkpoint_name = ''
-    best_em = -1
-    # iterate over all the directories in the specified directory
-    for dir_name in os.listdir(dir_path):
-
-        if os.path.isdir(os.path.join(dir_path, dir_name)):
-
-            with open(dir_path + '/' + dir_name  + '/' + 'results.txt', 'r') as f:
-                d = {}
-                for l in f.readlines():
-                    key, value = l.split('=')
-                    d[key] = value
-                    
-
-                if float(d['em']) > best_em:
-                    best_em = float(d['em'])
-                    checkpoint_name = dir_name
-
-                    print(f'Best checkpoint {checkpoint_name} with em={best_em}')
-
-    return dir_path + '/' + checkpoint_name
-
-
 def main():
 
     tuning_choices = [
-        (t5_lightweight_tuning.get_aliases(), t5_lightweight_tuning.create_stuff),
-        (t5_finetuning.get_aliases(), t5_finetuning.create_stuff),
-        (t5_promptuning2.get_aliases(), t5_promptuning2.create_stuff),
-        (t5_inctxlearning.get_aliases(), t5_inctxlearning.create_stuff),
-        (t5_adversarial_training.get_aliases(), t5_adversarial_training.create_stuff),
+        (Finetuning.get_aliases(), Finetuning),
+        (PromptTuning.get_aliases(), PromptTuning),
+        (InCtxLearning.get_aliases(), InCtxLearning),
+        (LightweightTuning.get_aliases(), LightweightTuning),
+        (AdversarialTraining.get_aliases(), AdversarialTraining),
     ]
 
     all_tuning_choises = []
@@ -56,10 +34,13 @@ def main():
     parser = argparse.ArgumentParser(description='MasterThesis')
 
     # Add the positional argument
+    parser.add_argument('-n', '--number_trials')
     parser.add_argument('-m', '--model_name', nargs='?',
                         default='large', choices=utils.get_model_name_choices())
     parser.add_argument('--dataset_type', type=str,
                         help='type of dataset to train against', choices=utils.get_dataset_name_choices())
+    parser.add_argument('--testset_type', type=str,
+                        help='type of testset to validate against', choices=['f', 'cf', 'a(e)', 'a(r)'])
     parser.add_argument('-p', '--process_id', type=int,
                         help='id of the process')
     parser.add_argument('-b', '--batch_size', type=int,
@@ -75,7 +56,7 @@ def main():
     args = parser.parse_args()
 
 
-    checkpoint = find_best_checkpoint(args.checkpoint_id) #275
+    checkpoint = utils.find_best_checkpoint(args.checkpoint_id)
     with open(checkpoint+'/results.txt', 'r') as f:
         print(f.readlines())
 
@@ -96,12 +77,28 @@ def main():
         if args.tuning not in choice[0]:
             continue
 
-        training_elems, training_data = choice[1](config, checkpoint)
-        torch.cuda.empty_cache()
+        method = choice[1](config, checkpoint)
 
-        for k in training_data.test_loaders:
-            acc = evaluate(training_elems, config, training_data.test_loaders[k], verbose=True)
-            print(f'{k=} {acc=}')
+        for k in method.training_data.test_loaders:
+
+            if k != 'cf':
+                continue
+
+            accs = []
+            for i in range(args.number_trials):
+                sample_test_set = method.training_data.test_loaders[k].dataset.get_dataframe().sample(n=1365, replace=True)
+
+                stest_loader = DataLoader(utils.PandasDataset(sample_test_set), collate_fn=lambda inp: utils.collate_fn(
+                    inp, max_source_input_len=396, tokenizer=method.training_elems.tokenizer), batch_size=config.eval_batch_size, shuffle=True, num_workers=4, pin_memory=True)
+
+                acc = evaluate(method.training_elems, method.config, stest_loader, verbose=True)
+                accs.append(acc)
+                print(f'{i=} {acc=}')
+            
+            print(accs)
+            print(np.mean(accs))
+            print(np.std(accs))
+
 
         break
 

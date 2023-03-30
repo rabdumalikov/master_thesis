@@ -84,7 +84,7 @@ def main():
         project="MasterThesis",
         id=str(args.process_id),
         group='HyperParametersTuning',
-        name=f'id[{args.process_id}]-[{args.tuning}]-on[{args.dataset_type}]-bs[{config.batch_size}]-{utils.get_model_name(config.model_name)}',
+        name=f'id[{args.process_id}]-[{args.tuning}]-on[{args.dataset_type}]-bs[{config.batch_size}]-{utils.get_model_name(args.model_name)}',
         # track hyperparameters and run metadata
         config=vars(config)
     )

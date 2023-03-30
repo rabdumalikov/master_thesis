@@ -43,13 +43,16 @@ class LightweightTuning(Finetuning):
     def create_pef_config(self):
 
         adapter_name = self.config.tuning_method
-
+        
         if adapter_name == 'prefix_tuning':
-            return PrefixTuningConfig(flat=True, prefix_length=100) # based on prefix-tuning paper
+            return PrefixTuningConfig(flat=True, prefix_length=
+                self.config.tuning_settings['prefix_length']) # based on prefix-tuning paper
         elif adapter_name == 'bottleneck_adapter':
             return AdapterConfig(mh_adapter=True, output_adapter=True,
-                                reduction_factor=16, non_linearity="relu")
+                                reduction_factor=self.config.tuning_settings['adapter_reduction_factor'], 
+                                non_linearity="relu")
         elif adapter_name == 'lora':
-            return LoRAConfig(r=16, alpha=32) # based on adapters paper
+            return LoRAConfig(r=self.config.tuning_settings['lora_r'], 
+                alpha=self.config.tuning_settings['lora_alpha']) # based on adapters paper
         else:
             return None

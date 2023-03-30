@@ -41,7 +41,7 @@ class AdversarialTraining(Finetuning):
         self.training_data = CustomTrainingData(config=self.config, tokenizer=self.training_elems.tokenizer)
 
     def train(self):
-
+        
         print("Training started...")
         print(f'{self.config.model_name=} {self.config.batch_size=} {self.config.epochs=}')
 
@@ -71,8 +71,8 @@ class AdversarialTraining(Finetuning):
 
             print(f'{loss=}')
 
-            best_em_score = validate(training_elems, training_data, config,
-                                    e, loss, config.model_saving_folder, best_em_score)
+            best_em_score = validate(self.training_elems, self.training_data, self.config,
+                                    e, loss, self.config.model_saving_folder, best_em_score)
 
         return best_em_score
 
