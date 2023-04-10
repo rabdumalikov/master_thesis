@@ -43,39 +43,44 @@ def main():
                         help='folder for model saving')
     parser.add_argument('-g', '--gpu_name', type=str,
                         help='name of the gpu that will be used')
-    parser.add_argument( '-t', '--tuning', type=str, choices=all_tuning_choises)
-    parser.add_argument( '--checkpoint_id', type=int )
+    parser.add_argument( '-t', '--tuning', type=str, nargs='?',
+                        default='finetuning', choices=all_tuning_choises)
+    parser.add_argument( '--checkpoint_ids', nargs='+', required=True )
 
     # Parse the arguments
     args = parser.parse_args()
 
+    for checkpoint_id in args.checkpoint_ids:
+        checkpoint_id = int(checkpoint_id)
+        args.tuning = utils.get_tuning_type(checkpoint_id)
+        print(f'{args.tuning=}')
 
-    checkpoint = utils.find_best_checkpoint(args.checkpoint_id)
-    with open(checkpoint+'/results.txt', 'r') as f:
-        print(f.readlines())
+        checkpoint = utils.find_best_checkpoint(checkpoint_id)
+        with open(checkpoint+'/results.txt', 'r') as f:
+            print(f.readlines())
 
-    config = TrainingConfig(model_name=utils.get_model_name(args.model_name),
-                            dataset_type=args.dataset_type, batch_size=args.batch_size,
-                            num_gpus=1, gradient_accumulation_steps=1,
-                            gpu_stat_every=500, 
-                            evaluation_every=1, 
-                            device=deduce_device(), 
-                            epochs=100, 
-                            model_saving_folder='',
-                            tuning_method=args.tuning,
-                            gpu_name=args.gpu_name
-                )
+        config = TrainingConfig(model_name=utils.get_model_name(args.model_name),
+                                dataset_type=args.dataset_type, batch_size=args.batch_size,
+                                num_gpus=1, gradient_accumulation_steps=1,
+                                gpu_stat_every=500, 
+                                evaluation_every=1, 
+                                device=deduce_device(), 
+                                epochs=100, 
+                                model_saving_folder='',
+                                tuning_method=args.tuning,
+                                gpu_name=args.gpu_name
+                    )
 
-    print(config)
-    
-    for choice in tuning_choices:
-        if args.tuning not in choice[0]:
-            continue
+        print(vars(config))
+        
+        for choice in tuning_choices:
+            if args.tuning not in choice[0]:
+                continue
 
-        method = choice[1](config, checkpoint)
-        method.eval()
+            method = choice[1](config, checkpoint)
+            method.eval()
 
-        break
+            break
 
 if __name__ == '__main__':
     main()

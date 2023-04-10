@@ -81,7 +81,8 @@ def main():
         epochs=utils.get_number_of_epochs(args.epochs),
         model_saving_folder=args.save_in,
         FP16=args.fp16,
-        tuning_method=args.tuning
+        tuning_method=args.tuning,
+        gpu_name=args.gpu_name
     )
 
     print("\n============================")
@@ -92,10 +93,9 @@ def main():
         # 2: Define the search space
         sweep_configuration = {
             'method': 'random',
-            'metric': {'goal': 'maximize', 'name': 'val_EM_acc'},
+            'metric': {'goal': 'minimize', 'name': 'val_loss'},
             'parameters': 
             {
-                'learning_rate': {'max': 0.0001, 'min': 0.000001},
                 'prompt_length': {'max': 200, 'min': 50},
                 'type_of_optimizer': {'values': ['adamw', 'adafactor']}
             }
@@ -104,18 +104,38 @@ def main():
         # 2: Define the search space
         sweep_configuration = {
             'method': 'random',
-            'metric': {'goal': 'maximize', 'name': 'val_EM_acc'},
+            'metric': {'goal': 'minimize', 'name': 'val_loss'},
             'parameters': 
             {
-                'learning_rate': {'max': 0.0001, 'min': 0.000001},
-                'adapter_reduction_factor': {'max': 100, 'min': 16},
+                'adapter_reduction_factor': {'max': 100, 'min': 8},
                 'type_of_optimizer': {'values': ['adamw', 'adafactor']}
             }
         }
-
+    elif config.tuning_method == 'prefix_tuning':
+        # 2: Define the search space
+        sweep_configuration = {
+            'method': 'random',
+            'metric': {'goal': 'minimize', 'name': 'val_loss'},
+            'parameters': 
+            {
+                'prefix_length': {'max': 200, 'min': 10},
+                'type_of_optimizer': {'values': ['adamw', 'adafactor']}
+            }
+        }
+    elif config.tuning_method == 'lora':
+        # 2: Define the search space
+        sweep_configuration = {
+            'method': 'random',
+            'metric': {'goal': 'minimize', 'name': 'val_loss'},
+            'parameters': 
+            {
+                'lora_r': {'max': 64, 'min': 8},
+                'lora_alpha': {'max': 100, 'min': 32}
+            }
+        }
 
     config.data_usage_percentage = 0.1
-    config.epochs = 2
+    config.epochs = 5
     # 3: Start the sweep
     sweep_id = wandb.sweep(sweep=sweep_configuration, project='Sweep')
     

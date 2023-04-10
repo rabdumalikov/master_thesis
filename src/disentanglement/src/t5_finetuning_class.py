@@ -1,3 +1,4 @@
+import math
 import wandb
 import torch
 import common_utils
@@ -74,7 +75,7 @@ class Finetuning:
         print(f"Training started...")
         print(f'{self.config.model_name=} {self.config.tuning_method=} {self.config.batch_size=} {self.config.epochs=}')
 
-        best_em_score = 0.0
+        best_val_loss = math.inf
         for e in range(1, self.config.epochs):
 
             self.training_elems.model.train()
@@ -83,23 +84,25 @@ class Finetuning:
             losses = []
 
             steps = get_number_training_steps(e, len(self.training_data.train_loader), self.config.batch_size )
+
+            if self.config.skip_train == False:
+                with TimeMeasure(epoch=e, steps=steps):
+                    for batch_idx, train_batch in enumerate(self.training_data.train_loader, 1):
+                        loss = train_step(training_elements=self.training_elems,
+                                        config=self.config, train_batch=train_batch,
+                                        batch_idx=batch_idx, need_to_optimize=self.need_to_optimize(batch_idx))
+
+                        losses.append(loss)
+                loss = sum(losses)/len(losses)
+            else:
+                loss = 0.5
             
-            with TimeMeasure(epoch=e, steps=steps):
-                for batch_idx, train_batch in enumerate(self.training_data.train_loader, 1):
-                    loss = train_step(training_elements=self.training_elems,
-                                    config=self.config, train_batch=train_batch,
-                                    batch_idx=batch_idx, need_to_optimize=self.need_to_optimize(batch_idx))
-
-                    losses.append(loss)
-
-            loss = sum(losses)/len(losses)
-
             print(f'{loss=}')
 
-            best_em_score = validate(self.training_elems, self.training_data, self.config,
-                                    e, loss, self.config.model_saving_folder, best_em_score, verbose=False)
+            best_val_loss = validate(self.training_elems, self.training_data, self.config,
+                                    e, loss, self.config.model_saving_folder, best_val_loss, verbose=False)
 
-        return best_em_score
+        return best_val_loss
 
     def need_to_optimize(self, batch_idx):
         return ((batch_idx + 1) % self.config.gradient_accumulation_steps ==

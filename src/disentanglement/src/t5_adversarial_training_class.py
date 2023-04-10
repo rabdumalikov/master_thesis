@@ -1,3 +1,4 @@
+import math
 import wandb
 import torch
 import common_utils
@@ -15,13 +16,13 @@ class CustomTrainingData(TrainingData):
 
         train_set = self.train_loader.dataset.get_dataframe()
 
-        self.f_train_loader = DataLoader(PandasDataset(train_set[train_set['type'] == 'factual']), 
+        cfs = train_set[train_set['type'] == 'counterfactual']
+        sampler = RandomSampler(PandasDataset(cfs), replacement=True)
+
+        self.cf_train_loader = DataLoader(PandasDataset(cfs), sampler=sampler,
             collate_fn=lambda inp: collate_fn(inp, max_source_input_len=256, **kwargs), batch_size=config.batch_size, num_workers=4, pin_memory=True)
 
-        sampler = RandomSampler(PandasDataset(
-            train_set[train_set['type'] == 'counterfactual']), replacement=True)
-
-        self.cf_train_loader = DataLoader(PandasDataset(train_set[train_set['type'] == 'counterfactual']), sampler=sampler,
+        self.f_train_loader = DataLoader(PandasDataset(train_set[~train_set.index.isin(cfs.index)]), 
             collate_fn=lambda inp: collate_fn(inp, max_source_input_len=256, **kwargs), batch_size=config.batch_size, num_workers=4, pin_memory=True)
 
         print(len(self.f_train_loader), len(self.cf_train_loader))
@@ -45,7 +46,7 @@ class AdversarialTraining(Finetuning):
         print("Training started...")
         print(f'{self.config.model_name=} {self.config.batch_size=} {self.config.epochs=}')
 
-        best_em_score = 0.0
+        best_val_loss = 0.0
         for e in range(1, self.config.epochs):
 
             self.training_elems.model.train()
@@ -71,10 +72,10 @@ class AdversarialTraining(Finetuning):
 
             print(f'{loss=}')
 
-            best_em_score = validate(self.training_elems, self.training_data, self.config,
-                                    e, loss, self.config.model_saving_folder, best_em_score)
+            best_val_loss = validate(self.training_elems, self.training_data, self.config,
+                                    e, loss, self.config.model_saving_folder, best_val_loss)
 
-        return best_em_score
+        return best_val_loss
 
     @staticmethod
     def train_step(training_elements: TrainingElements, config: TrainingConfig,

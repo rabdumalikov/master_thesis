@@ -4,6 +4,7 @@ import argparse
 import utils
 import numpy as np
 
+from t5_peft_class import PEFTTuning
 from t5_finetuning_class import Finetuning
 from t5_promptuning_class import PromptTuning
 from t5_lightweight_tuning_class import LightweightTuning
@@ -23,6 +24,7 @@ def get_short_model_name(name):
 def main():
     model_name_choices = utils.get_model_name_choices()
     tuning_choices = [
+        (PEFTTuning.get_aliases(), PEFTTuning),
         (Finetuning.get_aliases(), Finetuning),
         (PromptTuning.get_aliases(), PromptTuning),
         (InCtxLearning.get_aliases(), InCtxLearning),
@@ -56,16 +58,24 @@ def main():
                         help='name of the gpu that will be used')
     parser.add_argument('-b', '--batch_size', type=int,
                         help='size of the mini batch ')
+    parser.add_argument('--continue_training', type=int, nargs='?',
+                        help='checkpoint id')
 
     parser.add_argument('--grad_accum', type=int,
                         help='gradient accumulation steps')
+    parser.add_argument('--skip_train', type=bool, default=False, help='for testing purpose')
 
     parser.add_argument(
-        '-t', '--tuning', type=str, choices=all_tuning_choises)  # ['finetuning', 'prefixtuning', 'promptuning', 'adapters', 'lora', 'adversarial_training', 'in-context-learning'])
-
+        '-t', '--tuning', type=str, choices=all_tuning_choises) 
+        
     # Parse the arguments
     args = parser.parse_args()
 
+    checkpoint_id = None
+    if args.continue_training:
+        checkpoint_id = str(utils.find_best_checkpoint(args.continue_training))
+        print(f"Continue training from {checkpoint_id}")
+        
     config = utils.TrainingConfig(
         model_name=utils.get_model_name(args.model_name),
         gradient_accumulation_steps=args.grad_accum,
@@ -76,7 +86,8 @@ def main():
         model_saving_folder=args.save_in,
         FP16=args.fp16,
         tuning_method=args.tuning,
-        gpu_name=args.gpu_name
+        gpu_name=args.gpu_name,
+        skip_train=args.skip_train,
     )
 
     # start a new wandb run to track this script
@@ -96,13 +107,13 @@ def main():
 
     for choice in tuning_choices:
         if args.tuning in choice[0]:
-            method = choice[1](config)
-            best_em_score = method.train()
+            method = choice[1](config, checkpoint=checkpoint_id)
+            best_val_loss = method.train()
 
             print("\n============================\n")
-            print(f'{best_em_score=}')
+            print(f'{best_val_loss=}')
 
-            wandb.log({'best_em_score': best_em_score})
+            wandb.log({'best_val_loss': best_val_loss})
             break
 
     wandb.finish()

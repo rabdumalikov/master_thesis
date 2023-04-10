@@ -1,5 +1,7 @@
+import re
 import os
 import gzip
+import math
 import wandb
 import torch
 import tarfile
@@ -52,6 +54,7 @@ class TrainingConfig:
                  model_saving_folder: str,
                  tuning_method: str,
                  gpu_name: str,
+                 skip_train: bool,
                  FP16: bool = False ):
 
         self.model_name = model_name
@@ -60,7 +63,7 @@ class TrainingConfig:
         self.batch_size = batch_size
         self.gpu_stat_every = gpu_stat_every
         self.evaluation_every = evaluation_every
-        self.eval_batch_size = batch_size * 3
+        self.eval_batch_size = batch_size * 4
         self.device = device
         self.dataset_type = dataset_type
         self.epochs = epochs
@@ -77,6 +80,7 @@ class TrainingConfig:
         self.data_usage_percentage = 1.0
         self.is_wandb_sweep = False
         self.gpu_name = gpu_name
+        self.skip_train = skip_train
 
         self.tuning_settings = {'learning_rate': 0.0001, 
             'type_of_optimizer': 'adafactor',
@@ -100,6 +104,12 @@ class TrainingData:
 
         train_set = train_set[:int(len(train_set)*config.data_usage_percentage)]
         val_set = val_set[:int(len(val_set)*config.data_usage_percentage)]
+
+
+        # updating epoch
+        # new_num_epochs = math.ceil(50000/(len(train_set)//config.batch_size))
+        # print(f'Epochs changed from {config.epochs} to {new_num_epochs}')
+        # config.epochs = new_num_epochs
 
         print(
             f'TrainingData: {len(train_set)=} {len(val_set)=} {len(test_set)=}')
@@ -227,6 +237,7 @@ def get_model_name(short_name: str) -> str:
     mapping = {'large': 'large', 'xxl': '11b', 'xl': '3b'}
     return f't5-{mapping[short_name]}'
 
+    #return f'google/flan-t5-{short_name}'
     #return f'google/t5-{short_name}-lm-adapt'
     #return f'google/t5-v1_1-{short_name}'
     # names = {
@@ -323,7 +334,6 @@ def save_model(training_elements: TrainingElements, em_score: float, loss: float
     training_elements.tokenizer.save_pretrained(
         f"{checkpoint_path}/")
 
-
 @torch.no_grad()
 def evaluate(training_elements: TrainingElements, config: TrainingConfig,
              data_loader: DataLoader,
@@ -393,33 +403,68 @@ def evaluate(training_elements: TrainingElements, config: TrainingConfig,
 
     return exact_match_acc['exact_match']
 
+@torch.no_grad()
+def validation(training_elements: TrainingElements, config: TrainingConfig, data_loader: DataLoader, verbose, **kwargs):
+
+    print_gpu_utilization()
+
+    training_elements.model.eval()
+
+    torch.cuda.empty_cache()
+
+    losses = []
+    for val_batch in tqdm(data_loader):
+        def step():
+            src_ids, src_am, lm_labels = unroll_batch( val_batch, 
+                config.device, training_elements.tokenizer.pad_token_id )
+
+            def get_loss():
+                return training_elements.model(
+                    input_ids=src_ids,
+                    attention_mask=src_am,
+                    labels=lm_labels.to(f'cuda:{config.num_gpus-1}'),
+                    **kwargs
+                    )[0]
+
+            if config.gpu_name == 'tesla':
+                loss = get_loss()
+            else:
+                with autocast(dtype=torch.bfloat16, enabled=config.FP16):
+                    loss = get_loss()
+            # Returning only loss value important, otherwise OOM error
+            return loss.item()
+        
+        loss = step()
+        losses.append(loss)
+        
+    return np.mean(losses)
 
 def validate(training_elements: TrainingElements, training_data: TrainingData,
              training_config: TrainingConfig, current_epoch: int, loss: float,
-             folder: str, best_em_score: float, verbose: bool = False, **kwargs):
+             folder: str, best_val_loss: float, verbose: bool = False, **kwargs):
 
     torch.cuda.empty_cache()
 
     if current_epoch % training_config.evaluation_every != 0:
         return
 
-    val_exact_match_acc = evaluate(
+    val_loss = validation(
             training_elements, training_config, training_data.val_loader, verbose, **kwargs)
 
-    print(f'\te={current_epoch}, {val_exact_match_acc=}')
+    print(f'\te={current_epoch}, val_EM_acc={val_loss}')
 
     wandb.log({'epoch': current_epoch,
-                'loss': loss, f'val_EM_acc': val_exact_match_acc})
+                'loss': loss, f'val_EM_acc': val_loss})
 
     if training_config.is_wandb_sweep:
         print("Skipped evaluation on the TEST set")
-        return val_exact_match_acc if val_exact_match_acc > best_em_score else best_em_score
+        return val_loss if val_loss < best_val_loss else best_val_loss
 
-    if val_exact_match_acc > best_em_score:
+    if val_loss < best_val_loss:
 
         print(f'Saving model at e={current_epoch}')
 
-        training_config.closure_to_save_model(training_elements, val_exact_match_acc, loss,
+        training_config.closure_to_save_model(training_elements, val_loss, loss,
                     current_epoch, training_config.model_name, folder)
 
         results = {}
@@ -447,7 +492,7 @@ def validate(training_elements: TrainingElements, training_data: TrainingData,
 
         wandb.log({"results_table": results_table})
 
-    return val_exact_match_acc if val_exact_match_acc > best_em_score else best_em_score
+    return val_loss if val_loss < best_val_loss else best_val_loss
 
 def train_step(training_elements: TrainingElements, config: TrainingConfig,
                train_batch, batch_idx: int, need_to_optimize: bool, **kwargs):
@@ -461,7 +506,6 @@ def train_step(training_elements: TrainingElements, config: TrainingConfig,
         return training_elements.model(
             input_ids=src_ids,
             attention_mask=src_am,
-            #decoder_input_ids=trg_ids[:, :-1], labels=None,
             labels=lm_labels.to(f'cuda:{config.num_gpus-1}'),
             **kwargs
             )[0]
@@ -490,6 +534,8 @@ def train_step(training_elements: TrainingElements, config: TrainingConfig,
         print_gpu_utilization()
         torch.cuda.empty_cache()
 
+    # This is really important '.item()' because otherwise pytorch accumulates memory losses,
+    # and I get OOM error.
     return loss.item()
 
 def unroll_batch( batch, device: torch.device, pad_token_id ):
@@ -515,6 +561,17 @@ def get_dataset_name_choices() -> List[str]:
 def get_model_name_choices() -> List[str]:
     return ['large', 'xl', 'xxl', 'small', 'base']
 
+def get_tuning_type(id: int):
+    build_file = f'.builds/{id}/build_{id}.sh'
+    with open(build_file, 'r') as f:
+        #python -u main_class.py --dataset_type 's(f+a)' -t promptuning -b 32 --grad_accum 1 -m large -s .builds/568/models/ -g tesla -p 568
+
+        for l in f.readlines():
+            pattern = re.compile(r'^python.* (.*)\.py.* -t (.*?) .*$')
+            for match in pattern.finditer(l):
+                return match.group(2)
+
+    return 'Such file doesnt exist!'
 
 def find_best_checkpoint(id: int):
     dir_path = f'.builds/{id}/models'

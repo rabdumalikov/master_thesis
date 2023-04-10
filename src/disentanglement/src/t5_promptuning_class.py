@@ -55,9 +55,9 @@ class PromptTuning(Finetuning):
 
     def __init__(self, config: TrainingConfig, checkpoint: str = None):
 
-        config.tuning_settings['learning_rate'] = 0.00006483
-        #self.prompt_len = config.tuning_settings['prompt_length'] # from paper: 'going beyong 20 prompt tokens only yields marginal gains'.
-        self.prompt_len = 138 # from wandb-sweep
+        #config.tuning_settings['learning_rate'] = 0.00006483
+        self.prompt_len = config.tuning_settings['prompt_length'] # from paper: 'going beyong 20 prompt tokens only yields marginal gains'.
+        #self.prompt_len = 138 # from wandb-sweep
 
         def postprocessing(source):
             fake_prompt = torch.ones((source['input_ids'].size(0), self.prompt_len),
