@@ -46,7 +46,7 @@ class AdversarialTraining(Finetuning):
         print("Training started...")
         print(f'{self.config.model_name=} {self.config.batch_size=} {self.config.epochs=}')
 
-        best_val_loss = 0.0
+        best_val_loss = 0.0 if self.config.val_accuracy else math.inf
         for e in range(1, self.config.epochs):
 
             self.training_elems.model.train()
@@ -89,7 +89,8 @@ class AdversarialTraining(Finetuning):
         src_ids, src_am, lm_labels = unroll_batch( train_batch, 
             config.device, training_elements.tokenizer.pad_token_id )
 
-        with autocast(dtype=torch.bfloat16, enabled=config.FP16):
+
+        def compute_loss():
             loss1 = training_elements.model(
                 input_ids=src_ids,
                 attention_mask=src_am,
@@ -107,6 +108,13 @@ class AdversarialTraining(Finetuning):
             reguralizer = 0.25
             
             loss = loss1 + reguralizer * loss2 # 0.25 comes from undersensitivity paper
+            return loss
+
+        if config.gpu_name == 'tesla':
+            loss = compute_loss()
+        else:
+            with autocast(dtype=torch.bfloat16, enabled=config.FP16):
+                loss = compute_loss()
 
         # normalize loss to account for batch accumulation
         loss = loss / config.gradient_accumulation_steps

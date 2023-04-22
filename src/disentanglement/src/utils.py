@@ -12,6 +12,7 @@ import evaluation_script_squad_v2 as ev
 from pynvml import *
 from tqdm import tqdm
 from evaluate import load
+from bertviz import head_view
 from datetime import timedelta
 from timeit import default_timer as timer
 from typing import Tuple, List, Dict, Optional
@@ -55,6 +56,7 @@ class TrainingConfig:
                  tuning_method: str,
                  gpu_name: str,
                  skip_train: bool,
+                 val_accuracy: bool,
                  FP16: bool = False ):
 
         self.model_name = model_name
@@ -81,6 +83,7 @@ class TrainingConfig:
         self.is_wandb_sweep = False
         self.gpu_name = gpu_name
         self.skip_train = skip_train
+        self.val_accuracy = val_accuracy
 
         self.tuning_settings = {'learning_rate': 0.0001, 
             'type_of_optimizer': 'adafactor',
@@ -122,6 +125,9 @@ class TrainingData:
         self.test_loaders = {}
         for k in test_set:
             if k not in allowed_test_sets:
+                continue
+            
+            if len(test_set[k]) == 0:
                 continue
 
             self.test_loaders[k] = DataLoader(PandasDataset(test_set[k]), collate_fn=lambda inp: collate_fn(
@@ -261,7 +267,8 @@ def _get_data_path_for(dataset_type: str) -> Tuple[str, str, str]:
         's(f)': ('(s) f - train.csv.tar.gz', '(s) f - val.csv.tar.gz', 'test_sets.csv.tar.gz'),
         's(f+cf)': ('(s) f+cf - train.csv.tar.gz', '(s) f+cf - val.csv.tar.gz', 'test_sets.csv.tar.gz'),
         's(f+a)': ('(s) f+a - train.csv.tar.gz', '(s) f+a - val.csv.tar.gz', 'test_sets.csv.tar.gz'),
-        's(f+cf+a)': ('(s) f+cf+a - train.csv.tar.gz', '(s) f+cf+a - val.csv.tar.gz', 'test_sets.csv.tar.gz')
+        's(f+cf+a)': ('(s) f+cf+a - train.csv.tar.gz', '(s) f+cf+a - val.csv.tar.gz', 'test_sets.csv.tar.gz'),
+        'gpt_rnd': ('(s) f+cf - train.csv.tar.gz', '(s) f+cf - val.csv.tar.gz', 'GPT_rnd.csv.tar.gz'), #GPT_rnd.csv.tar.gz
     }
 
     train, val, test = Experiments[dataset_type]
@@ -401,10 +408,12 @@ def evaluate(training_elements: TrainingElements, config: TrainingConfig,
     exact_match_acc = exact_match_metric.compute(
         predictions=np.array(predictions), references=np.array(ground_truth))
 
-    return exact_match_acc['exact_match']
+    return exact_match_acc['exact_match'], lambda current, prev: current > prev
 
 @torch.no_grad()
 def validation(training_elements: TrainingElements, config: TrainingConfig, data_loader: DataLoader, verbose, **kwargs):
+
+    print("Validating...")
 
     print_gpu_utilization()
 
@@ -417,6 +426,12 @@ def validation(training_elements: TrainingElements, config: TrainingConfig, data
         def step():
             src_ids, src_am, lm_labels = unroll_batch( val_batch, 
                 config.device, training_elements.tokenizer.pad_token_id )
+
+            tokens = training_elements.tokenizer.convert_ids_to_tokens(src_ids[0]) 
+            print(f'{tokens=}')
+            src_ids = torch.unsqueeze( src_ids[0][:len(tokens)], dim=0 )
+            src_am = torch.unsqueeze( src_am[0][:len(tokens)], dim=0 )
+            lm_labels = torch.unsqueeze( lm_labels[0][:len(tokens)], dim=0 )
 
             def get_loss():
                 return training_elements.model(
@@ -437,7 +452,7 @@ def validation(training_elements: TrainingElements, config: TrainingConfig, data
         loss = step()
         losses.append(loss)
         
-    return np.mean(losses)
+    return np.mean(losses), lambda current, prev: current > prev
 
 def validate(training_elements: TrainingElements, training_data: TrainingData,
              training_config: TrainingConfig, current_epoch: int, loss: float,
@@ -448,19 +463,26 @@ def validate(training_elements: TrainingElements, training_data: TrainingData,
     if current_epoch % training_config.evaluation_every != 0:
         return
 
-    val_loss = validation(
-            training_elements, training_config, training_data.val_loader, verbose, **kwargs)
+    param_name = ''
+    if training_config.val_accuracy:
+        val_loss, cmp = evaluate(
+                training_elements, training_config, training_data.val_loader, verbose, **kwargs)
+        param_name = 'val_EM_acc'
+    else:
+        val_loss, cmp = validation(
+                training_elements, training_config, training_data.val_loader, verbose, **kwargs)
+        param_name = 'val_loss'
 
-    print(f'\te={current_epoch}, val_EM_acc={val_loss}')
+    print(f'\te={current_epoch}, {param_name}={val_loss}')
 
     wandb.log({'epoch': current_epoch,
-                'loss': loss, f'val_EM_acc': val_loss})
+                'loss': loss, f'{param_name}': val_loss})
 
     if training_config.is_wandb_sweep:
         print("Skipped evaluation on the TEST set")
-        return val_loss if val_loss < best_val_loss else best_val_loss
+        return val_loss if cmp(val_loss, best_val_loss) else best_val_loss
 
-    if val_loss < best_val_loss:
+    if cmp(val_loss, best_val_loss):
 
         print(f'Saving model at e={current_epoch}')
 
@@ -472,7 +494,7 @@ def validate(training_elements: TrainingElements, training_data: TrainingData,
 
             loader = training_data.test_loaders[key]
 
-            exact_match_acc = evaluate(
+            exact_match_acc, _ = evaluate(
                 training_elements, training_config, loader, verbose, **kwargs)
 
             results[training_data.to_readable_name(key)] = exact_match_acc
@@ -492,7 +514,7 @@ def validate(training_elements: TrainingElements, training_data: TrainingData,
 
         wandb.log({"results_table": results_table})
 
-    return val_loss if val_loss < best_val_loss else best_val_loss
+    return val_loss if cmp(val_loss, best_val_loss) else best_val_loss
 
 def train_step(training_elements: TrainingElements, config: TrainingConfig,
                train_batch, batch_idx: int, need_to_optimize: bool, **kwargs):
@@ -556,7 +578,7 @@ def deduce_device() -> torch.device:
     return device
 
 def get_dataset_name_choices() -> List[str]:
-    return ['s(f)', 's(f+cf)', 's(f+a)', 's(f+cf+a)']
+    return ['s(f)', 's(f+cf)', 's(f+a)', 's(f+cf+a)', 'gpt_rnd']
 
 def get_model_name_choices() -> List[str]:
     return ['large', 'xl', 'xxl', 'small', 'base']
@@ -589,8 +611,7 @@ def find_best_checkpoint(id: int):
                     key, value = l.split('=')
                     d[key] = value
                     
-
-                if float(d['em']) > best_em:
+                if float(d['em']) >= best_em:
                     best_em = float(d['em'])
                     checkpoint_name = dir_name
 

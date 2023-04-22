@@ -46,9 +46,16 @@ def main():
     parser.add_argument( '-t', '--tuning', type=str, nargs='?',
                         default='finetuning', choices=all_tuning_choises)
     parser.add_argument( '--checkpoint_ids', nargs='+', required=True )
+    parser.add_argument('--val_loss', default=False, action="store_true",
+                        help='if True then val_acc otherwise val_loss')
+    parser.add_argument('--skip_train', action="store_true", default=False, help='for testing purpose')
 
     # Parse the arguments
     args = parser.parse_args()
+
+    print("\n============================")
+    print(f'ARGUMENTS: {args}')
+    print("============================\n")
 
     for checkpoint_id in args.checkpoint_ids:
         checkpoint_id = int(checkpoint_id)
@@ -68,7 +75,9 @@ def main():
                                 epochs=100, 
                                 model_saving_folder='',
                                 tuning_method=args.tuning,
-                                gpu_name=args.gpu_name
+                                gpu_name=args.gpu_name,
+                                skip_train=args.skip_train,
+                                val_accuracy=(not args.val_loss)
                     )
 
         print(vars(config))

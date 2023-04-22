@@ -60,10 +60,12 @@ def main():
                         help='size of the mini batch ')
     parser.add_argument('--continue_training', type=int, nargs='?',
                         help='checkpoint id')
+    parser.add_argument('--val_loss', default=False, action="store_true",
+                        help='if True then val_acc otherwise val_loss')
 
     parser.add_argument('--grad_accum', type=int,
                         help='gradient accumulation steps')
-    parser.add_argument('--skip_train', type=bool, default=False, help='for testing purpose')
+    parser.add_argument('--skip_train', action="store_true", default=False, help='for testing purpose')
 
     parser.add_argument(
         '-t', '--tuning', type=str, choices=all_tuning_choises) 
@@ -88,6 +90,7 @@ def main():
         tuning_method=args.tuning,
         gpu_name=args.gpu_name,
         skip_train=args.skip_train,
+        val_accuracy=(not args.val_loss)
     )
 
     # start a new wandb run to track this script
@@ -95,7 +98,7 @@ def main():
         # set the wandb project where this run will be logged
         project="MasterThesis",
         id=str(args.process_id),
-        group='HyperParametersTuning',
+        group='RandomSeed',
         name=f'id[{args.process_id}]-[{args.tuning}]-on[{args.dataset_type}]-bs[{config.batch_size}]-{utils.get_model_name(args.model_name)}',
         # track hyperparameters and run metadata
         config=vars(config)
