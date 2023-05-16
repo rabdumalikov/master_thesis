@@ -36,6 +36,9 @@ class LightweightTuning(Finetuning):
         
         model.set_active_adapters(self.config.tuning_method)
 
+        num_param = count_parameters(model)
+        print(f'{self.config.tuning_method} number of parameters is {num_param}')
+
         print("Finished loading model")
 
         return model

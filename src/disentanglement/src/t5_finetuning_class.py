@@ -59,6 +59,9 @@ class Finetuning:
         model = T5ForConditionalGeneration.from_pretrained(
             model_name, device_map='balanced')
 
+        num_param = count_parameters(model)
+        print(f'Fine-Tuning number of parameters is {num_param}')
+
         print("Finished loading model")
 
         return model

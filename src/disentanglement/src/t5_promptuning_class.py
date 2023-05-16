@@ -10,6 +10,7 @@ from transformers.optimization import Adafactor
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 from t5_finetuning_class import Finetuning
 
+
 class PromptEmbedding(nn.Module):
     def __init__(self,
                  wte: nn.Embedding,
@@ -24,6 +25,17 @@ class PromptEmbedding(nn.Module):
                                       prompt_length,
                                       random_range,
                                       initialize_from_vocab))
+
+        # n_embd, hid_dim = self.learned_embedding.size()
+        
+        # self.reparam = nn.Sequential(
+        #             nn.Linear(hid_dim, n_embd),
+        #             nn.Tanh(),
+        #             nn.Linear(n_embd, hid_dim))
+
+        #self.dropout = nn.Dropout(0.5)
+
+        #print(f'DROPOUT ACTIVATED prompt-tuning')
 
     def initialize_embedding(self,
                              wte: nn.Embedding,
@@ -42,11 +54,18 @@ class PromptEmbedding(nn.Module):
         # T5 original embedding layer with ours). fake_prompt is
         # a dummy payload of all 1's. It is used just to book the space.
 
+
         if (tokens[:, : self.prompt_length] == 1).all().item():
             input_embedding = self.wte(tokens[:, self.prompt_length:])
-            learned_embedding = self.learned_embedding.repeat(
+            prompt = self.learned_embedding.repeat(
                 input_embedding.size(0), 1, 1)
-            return torch.cat([learned_embedding, input_embedding], 1)
+
+            #print(f'{learned_embedding.size()=}')
+
+            # prompt = self.reparam( prompt )
+            #prompt = self.dropout(prompt)
+
+            return torch.cat([prompt, input_embedding], 1)
         else:
             return self.wte(tokens)
 
@@ -85,6 +104,9 @@ class PromptTuning(Finetuning):
         prompt_emb = PromptEmbedding(model.get_input_embeddings(),
                                     prompt_length=self.prompt_len,
                                     initialize_from_vocab=True)
+
+        num_param = count_parameters(prompt_emb)
+        print(f'PROMPT_TUNING number of parameters is {num_param}')
 
         if checkpoint is not None:
             print(f"Loading from checkpoint={checkpoint}")

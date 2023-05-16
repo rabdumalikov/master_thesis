@@ -105,8 +105,12 @@ class TrainingData:
         train_set, val_set, test_set = get_data(
             config.dataset_type, test_mapping)
 
-        train_set = train_set[:int(len(train_set)*config.data_usage_percentage)]
-        val_set = val_set[:int(len(val_set)*config.data_usage_percentage)]
+        # shuffle the DataFrame rows
+        train_set = train_set.sample(frac = config.data_usage_percentage)
+        val_set = val_set.sample(frac = config.data_usage_percentage)
+
+        #train_set = train_set[:int(len(train_set)*config.data_usage_percentage)]
+        #val_set = val_set[:int(len(val_set)*config.data_usage_percentage)]
 
 
         # updating epoch
@@ -240,11 +244,12 @@ def get_data(dataset_type: str, mapping: Dict[str, str]) -> Tuple[pd.DataFrame, 
 
 def get_model_name(short_name: str) -> str:
 
-    mapping = {'large': 'large', 'xxl': '11b', 'xl': '3b'}
-    return f't5-{mapping[short_name]}'
+    return f'google/t5-{short_name}-lm-adapt'
+
+    #mapping = {'large': 'large', 'xxl': '11b', 'xl': '3b'}
+    #return f't5-{mapping[short_name]}'
 
     #return f'google/flan-t5-{short_name}'
-    #return f'google/t5-{short_name}-lm-adapt'
     #return f'google/t5-v1_1-{short_name}'
     # names = {
     #     'large': 'google/t5-v1_1-large',
@@ -264,11 +269,16 @@ def _get_data_path_for(dataset_type: str) -> Tuple[str, str, str]:
 
     director = '../their_data/'
     Experiments = {
-        's(f)': ('(s) f - train.csv.tar.gz', '(s) f - val.csv.tar.gz', 'test_sets.csv.tar.gz'),
+        'cb': ('cb_train.csv.tar.gz', 'cb_val.csv.tar.gz', 'test_sets.csv.tar.gz'),
+        's(f)': ('(s) f - train.csv.tar.gz', '(s) f - val.csv.tar.gz', 'test_sets.csv.tar.gz'), #(s) f - train.csv.tar.gz
         's(f+cf)': ('(s) f+cf - train.csv.tar.gz', '(s) f+cf - val.csv.tar.gz', 'test_sets.csv.tar.gz'),
         's(f+a)': ('(s) f+a - train.csv.tar.gz', '(s) f+a - val.csv.tar.gz', 'test_sets.csv.tar.gz'),
         's(f+cf+a)': ('(s) f+cf+a - train.csv.tar.gz', '(s) f+cf+a - val.csv.tar.gz', 'test_sets.csv.tar.gz'),
-        'gpt_rnd': ('(s) f+cf - train.csv.tar.gz', '(s) f+cf - val.csv.tar.gz', 'GPT_rnd.csv.tar.gz'), #GPT_rnd.csv.tar.gz
+        'gpt_rnd': ('(s) f+cf - train.csv.tar.gz', '(s) f+cf - val.csv.tar.gz', 'GPT_rnd.csv.tar.gz'), #GPT_rnd.csv.tar.gz GPT_pert_ctx.csv.tar.gz
+        'gpt_cf': ('(s) f+cf - train.csv.tar.gz', '(s) f+cf - val.csv.tar.gz', 'GPT_cf.csv.tar.gz'), #GPT_rnd.csv.tar.gz GPT_pert_ctx.csv.tar.gz
+        'gpt_perm': ('(s) f+cf - train.csv.tar.gz', '(s) f+cf - val.csv.tar.gz', 'GPT_pert_ctx.csv.tar.gz'), #GPT_rnd.csv.tar.gz GPT_pert_ctx.csv.tar.gz
+        'hmo': ('(s) f - train.csv.tar.gz', 'GPT_rnd.csv.tar.gz', 'GPT_pert_ctx.csv.tar.gz'), #(s) f - train.csv.tar.gz,
+        'gpt_rnd_2': ('(s) f - train.csv.tar.gz', '(s) f - val.csv.tar.gz', 'GPT_relavent_answ_and_ctx.csv.tar.gz'),
     }
 
     train, val, test = Experiments[dataset_type]
@@ -290,10 +300,12 @@ def collate_fn(input: pd.DataFrame, max_source_input_len: int, tokenizer: T5Toke
 
     input = pd.concat(input, axis=1).T
 
+    # for in-context-learning
     if closure is not None:
         que_ctx = closure(input)
     else:
         que_ctx = input['input'].values.tolist()
+        #que_ctx = ("question: " + input['question'] + "\ncontext:").tolist()
 
     source_dict = tokenizer(que_ctx,  # Sentence to encode.
                             add_special_tokens=True,  # Add '[CLS]' and '[SEP]'
@@ -305,6 +317,8 @@ def collate_fn(input: pd.DataFrame, max_source_input_len: int, tokenizer: T5Toke
                             truncation=True,
                             return_tensors='pt',     # Return pytorch tensors.
                             )
+
+    # for prompt-tuning
     if postprocessing is not None:
         source_dict = postprocessing(source_dict)
 
@@ -578,7 +592,7 @@ def deduce_device() -> torch.device:
     return device
 
 def get_dataset_name_choices() -> List[str]:
-    return ['s(f)', 's(f+cf)', 's(f+a)', 's(f+cf+a)', 'gpt_rnd']
+    return ['s(f)', 's(f+cf)', 's(f+a)', 's(f+cf+a)', 'gpt_rnd', 'gpt_rnd_2', 'hmo', 'gpt_perm', 'cb', 'gpt_cf']
 
 def get_model_name_choices() -> List[str]:
     return ['large', 'xl', 'xxl', 'small', 'base']
@@ -618,3 +632,6 @@ def find_best_checkpoint(id: int):
                     print(f'Best checkpoint {checkpoint_name} with em={best_em}')
 
     return dir_path + '/' + checkpoint_name
+
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
