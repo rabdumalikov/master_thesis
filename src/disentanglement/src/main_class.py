@@ -96,9 +96,9 @@ def main():
     # start a new wandb run to track this script
     wandb.init(
         # set the wandb project where this run will be logged
-        project="PromptTuning",
+        project="MasterThesis",
         id=str(args.process_id),
-        group='T5-LM-Adapt',
+        group='T5-Adapt-New-Unans',
         name=f'id[{args.process_id}]-[{args.tuning}]-on[{args.dataset_type}]-bs[{config.batch_size}]-{utils.get_model_name(args.model_name)}',
         # track hyperparameters and run metadata
         config=vars(config)

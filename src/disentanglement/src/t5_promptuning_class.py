@@ -45,8 +45,8 @@ class PromptEmbedding(nn.Module):
         if initialize_from_vocab:
             return self.wte.weight[:prompt_length].clone().detach()
 
-        return torch.FloatTensor(wte.weight.size(1),
-                                 prompt_length).uniform_(-random_range, random_range)
+        return torch.FloatTensor(prompt_length, 
+                                 wte.weight.size(1)).uniform_(-random_range, random_range)
 
     def forward(self, tokens):
         # We need to identify whether fake_prompt was added or not, because if it

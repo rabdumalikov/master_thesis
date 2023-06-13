@@ -244,10 +244,12 @@ def get_data(dataset_type: str, mapping: Dict[str, str]) -> Tuple[pd.DataFrame, 
 
 def get_model_name(short_name: str) -> str:
 
-    return f'google/t5-{short_name}-lm-adapt'
+    #return f'google/t5-v1_1-{short_name}'
 
-    #mapping = {'large': 'large', 'xxl': '11b', 'xl': '3b'}
-    #return f't5-{mapping[short_name]}'
+    #return f'google/t5-{short_name}-lm-adapt'
+
+    mapping = {'large': 'large', 'xxl': '11b', 'xl': '3b'}
+    return f't5-{mapping[short_name]}'
 
     #return f'google/flan-t5-{short_name}'
     #return f'google/t5-v1_1-{short_name}'
@@ -269,8 +271,10 @@ def _get_data_path_for(dataset_type: str) -> Tuple[str, str, str]:
 
     director = '../their_data/'
     Experiments = {
-        'cb': ('cb_train.csv.tar.gz', 'cb_val.csv.tar.gz', 'test_sets.csv.tar.gz'),
-        's(f)': ('(s) f - train.csv.tar.gz', '(s) f - val.csv.tar.gz', 'test_sets.csv.tar.gz'), #(s) f - train.csv.tar.gz
+        'cb': ('cb_train.csv.tar.gz', 'cb_val.csv.tar.gz', 'test_sets.csv.tar.gz'),        
+        's(a2)': ('unanswerable_train_set.csv.tar.gz', 'GPT_f_jailbreak_irrelavent_answ_and_ctx.csv.tar.gz', 'test_sets.csv.tar.gz'),
+        's(f)': ('(s) f - train.csv.tar.gz', '(s) f - val.csv.tar.gz', 'test_sets.csv.tar.gz'),
+        's(f+a2)': ('new_train_set.csv.tar.gz', '(s) f - val.csv.tar.gz', 'test_sets.csv.tar.gz'),
         's(f+cf)': ('(s) f+cf - train.csv.tar.gz', '(s) f+cf - val.csv.tar.gz', 'test_sets.csv.tar.gz'),
         's(f+a)': ('(s) f+a - train.csv.tar.gz', '(s) f+a - val.csv.tar.gz', 'test_sets.csv.tar.gz'),
         's(f+cf+a)': ('(s) f+cf+a - train.csv.tar.gz', '(s) f+cf+a - val.csv.tar.gz', 'test_sets.csv.tar.gz'),
@@ -279,6 +283,8 @@ def _get_data_path_for(dataset_type: str) -> Tuple[str, str, str]:
         'gpt_perm': ('(s) f+cf - train.csv.tar.gz', '(s) f+cf - val.csv.tar.gz', 'GPT_pert_ctx.csv.tar.gz'), #GPT_rnd.csv.tar.gz GPT_pert_ctx.csv.tar.gz
         'hmo': ('(s) f - train.csv.tar.gz', 'GPT_rnd.csv.tar.gz', 'GPT_pert_ctx.csv.tar.gz'), #(s) f - train.csv.tar.gz,
         'gpt_rnd_2': ('(s) f - train.csv.tar.gz', '(s) f - val.csv.tar.gz', 'GPT_relavent_answ_and_ctx.csv.tar.gz'),
+        'gpt_rnd_2_cf_jb': ('(s) f - train.csv.tar.gz', '(s) f - val.csv.tar.gz', 'GPT_cf_jailbreak_irrelavent_answ_and_ctx_SUBSTIT.csv.tar.gz'), #GPT_cf_jailbreak_irrelavent_answ_and_ctx
+        'gpt_rnd_2_f_jb': ('(s) f - train.csv.tar.gz', '(s) f - val.csv.tar.gz', 'GPT_f_jailbreak_irrelavent_answ_and_ctx.csv.tar.gz') 
     }
 
     train, val, test = Experiments[dataset_type]
@@ -592,7 +598,7 @@ def deduce_device() -> torch.device:
     return device
 
 def get_dataset_name_choices() -> List[str]:
-    return ['s(f)', 's(f+cf)', 's(f+a)', 's(f+cf+a)', 'gpt_rnd', 'gpt_rnd_2', 'hmo', 'gpt_perm', 'cb', 'gpt_cf']
+    return ['s(f)', 's(f+a2)', 's(f+cf)', 's(f+a)', 's(f+cf+a)', 'gpt_rnd', 'gpt_rnd_2', 'gpt_rnd_2_cf_jb', 'gpt_rnd_2_f_jb', 'hmo', 'gpt_perm', 'cb', 'gpt_cf', 's(a2)']
 
 def get_model_name_choices() -> List[str]:
     return ['large', 'xl', 'xxl', 'small', 'base']
