@@ -1,5 +1,10 @@
 .DS_Store
+MODELS
+qa_entities
 __pycache__
+pretraining_entities
+long_tail_knowledge
+data_atari_seq
 ml-knowledge-conflicts/
 *.jsonl
 *.csv
