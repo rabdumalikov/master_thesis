@@ -4,7 +4,7 @@ import argparse
 import utils
 import numpy as np
 
-from t5_peft_class import PEFTTuning
+# from t5_peft_class import PEFTTuning
 from t5_finetuning_class import Finetuning
 from t5_promptuning_class import PromptTuning
 from t5_lightweight_tuning_class import LightweightTuning
@@ -15,16 +15,16 @@ os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 
 
 def get_short_model_name(name):
-    #choices = ['large', 'xl', 'xxl']
+    # choices = ['large', 'xl', 'xxl']
 
     short_name = name.upper() if 'x' in name else name.upper()[0]
 
     return f'T5{short_name}'
 
+
 def main():
     model_name_choices = utils.get_model_name_choices()
     tuning_choices = [
-        (PEFTTuning.get_aliases(), PEFTTuning),
         (Finetuning.get_aliases(), Finetuning),
         (PromptTuning.get_aliases(), PromptTuning),
         (InCtxLearning.get_aliases(), InCtxLearning),
@@ -65,11 +65,12 @@ def main():
 
     parser.add_argument('--grad_accum', type=int,
                         help='gradient accumulation steps')
-    parser.add_argument('--skip_train', action="store_true", default=False, help='for testing purpose')
+    parser.add_argument('--skip_train', action="store_true",
+                        default=False, help='for testing purpose')
 
     parser.add_argument(
-        '-t', '--tuning', type=str, choices=all_tuning_choises) 
-        
+        '-t', '--tuning', type=str, choices=all_tuning_choises)
+
     # Parse the arguments
     args = parser.parse_args()
 
@@ -77,7 +78,7 @@ def main():
     if args.continue_training:
         checkpoint_id = str(utils.find_best_checkpoint(args.continue_training))
         print(f"Continue training from {checkpoint_id}")
-        
+
     config = utils.TrainingConfig(
         model_name=utils.get_model_name(args.model_name),
         gradient_accumulation_steps=args.grad_accum,

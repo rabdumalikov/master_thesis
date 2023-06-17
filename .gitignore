@@ -1,13 +1,16 @@
 .DS_Store
+MODELS
+qa_entities
 __pycache__
+pretraining_entities
+long_tail_knowledge
+data_atari_seq
 ml-knowledge-conflicts/
 *.jsonl
 *.csv
 untitled folder/
 *.out
-*.sh
 .*
-evaluation_script_squad_v2.py
 test_pt.py
 test_table.py
 preprocess_utils.py
@@ -16,3 +19,4 @@ runs/
 wandb/
 their_data/
 old_stuff/
+counter.txt
