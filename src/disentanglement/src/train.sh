@@ -26,4 +26,4 @@ mkdir -p builds/"$current_number"/models
 # "-b" - batch_size
 # "-m" – model_type large/xl/xxl 
 
-python -u main_class.py --dataset_type 's(f)' -t lora -b 64 --grad_accum 1 -m large -s .builds/$current_number/models/ -g 80g -p $current_number &> $current_number.txt 
+python -u main_class.py --dataset_type 's(f+a)' -t finetuning_deepspeed -b 1 --grad_accum 1 -m xxl -s .builds/$current_number/models/ -g 80g -p $current_number &> $current_number.txt 

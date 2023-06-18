@@ -6,6 +6,7 @@ import numpy as np
 
 # from t5_peft_class import PEFTTuning
 from t5_finetuning_class import Finetuning
+from t5_finetuning_class_deepspeed import FinetuningDeepSpeed
 from t5_promptuning_class import PromptTuning
 from t5_lightweight_tuning_class import LightweightTuning
 from t5_adversarial_training_class import AdversarialTraining
@@ -26,6 +27,7 @@ def main():
     model_name_choices = utils.get_model_name_choices()
     tuning_choices = [
         (Finetuning.get_aliases(), Finetuning),
+        (FinetuningDeepSpeed.get_aliases(), FinetuningDeepSpeed),
         (PromptTuning.get_aliases(), PromptTuning),
         (InCtxLearning.get_aliases(), InCtxLearning),
         (LightweightTuning.get_aliases(), LightweightTuning),

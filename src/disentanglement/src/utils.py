@@ -65,7 +65,7 @@ class TrainingConfig:
         self.batch_size = batch_size
         self.gpu_stat_every = gpu_stat_every
         self.evaluation_every = evaluation_every
-        self.eval_batch_size = batch_size * 4
+        self.eval_batch_size = batch_size * 1
         self.device = device
         self.dataset_type = dataset_type
         self.epochs = epochs
@@ -538,6 +538,31 @@ def validate(training_elements: TrainingElements, training_data: TrainingData,
         wandb.log({"results_table": results_table})
 
     return val_loss if cmp(val_loss, best_val_loss) else best_val_loss
+
+def deepspeed_train_step(training_elements: TrainingElements, config: TrainingConfig,
+               train_batch, batch_idx: int, need_to_optimize: bool, **kwargs):
+
+    torch.cuda.empty_cache()
+
+    src_ids, src_am, lm_labels = unroll_batch( train_batch, 
+        config.device, training_elements.tokenizer.pad_token_id )
+
+    def get_loss():
+        return training_elements.model(
+            input_ids=src_ids,
+            attention_mask=src_am,
+            labels=lm_labels.to(f'cuda:{config.num_gpus-1}'),
+            **kwargs
+            )[0]
+
+    loss = get_loss()
+    training_elements.model.backward(loss)
+    training_elements.model.step()
+
+    # This is really important '.item()' because otherwise pytorch accumulates memory losses,
+    # and I get OOM error.
+    return loss.item()
+
 
 def train_step(training_elements: TrainingElements, config: TrainingConfig,
                train_batch, batch_idx: int, need_to_optimize: bool, **kwargs):
