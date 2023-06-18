@@ -60,7 +60,7 @@ class Finetuning:
         with init_empty_weights():
             model = T5ForConditionalGeneration.from_config(config)
 
-        device_map = infer_auto_device_map(model, no_split_module_classes=["T5Block"], dtype="float16")
+        device_map = infer_auto_device_map(model, max_memory={0: "25GiB", 1: "25GiB", 2: "25GiB", 3: "25GiB"},  no_split_module_classes=["T5Block"], dtype="float16")
 
 
         model = T5ForConditionalGeneration.from_pretrained(
