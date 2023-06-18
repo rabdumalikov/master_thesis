@@ -32,7 +32,7 @@ class FinetuningDeepSpeed:
         return ['finetuning_deepspeed']
 
     def get_local_aliases(self):
-        return Finetuning.get_aliases()
+        return FinetuningDeepSpeed.get_aliases()
 
     def __init__(self, config: TrainingConfig, checkpoint: str = None, closure = None, postprocessing = None):
 
@@ -100,7 +100,7 @@ class FinetuningDeepSpeed:
         print(f"Training started...")
         print(f'{self.config.model_name=} {self.config.tuning_method=} {self.config.batch_size=} {self.config.epochs=}')
 
-        best_val_loss = 0.0 if self.config.val_accuracy or self.config.tuning_method == 'finetuning' else math.inf
+        best_val_loss = 0.0 if self.config.val_accuracy or self.config.tuning_method == 'finetuning_deepspeed' else math.inf
         
         for e in range(1, self.config.epochs):
 
