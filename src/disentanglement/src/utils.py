@@ -319,7 +319,7 @@ def collate_fn(input: pd.DataFrame, max_source_input_len: int, tokenizer: T5Toke
     source_dict = tokenizer(que_ctx,  # Sentence to encode.
                             add_special_tokens=True,  # Add '[CLS]' and '[SEP]'
                             # Pad & truncate all sentences.
-                            model_max_length=max_source_input_len,
+                            max_length=max_source_input_len,
                             padding='max_length',
                             # Construct attn. masks.
                             return_attention_mask=True,
