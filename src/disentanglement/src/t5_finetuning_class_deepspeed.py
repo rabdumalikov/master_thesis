@@ -1,3 +1,4 @@
+import os
 import math
 import wandb
 import torch
@@ -6,6 +7,8 @@ import common_utils
 
 from utils import *
 from transformers import T5Tokenizer, T5ForConditionalGeneration
+
+os.environ["RANK"] = "0"
 
 # Step 3: Model parallelism configuration
 ds_config = {
