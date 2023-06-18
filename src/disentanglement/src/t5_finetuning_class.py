@@ -40,7 +40,7 @@ class Finetuning:
             model.gradient_checkpointing_enable()
             model.config.use_cache = False
 
-        model = model.to(self.config.device)
+        #model = model.to(self.config.device)
 
         # TODO: optimizer changed. utils.py
         self.training_elems = TrainingElements(model, tokenizer, self.create_optimizer(model))
