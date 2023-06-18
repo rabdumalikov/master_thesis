@@ -58,7 +58,7 @@ class FinetuningDeepSpeed:
             model.gradient_checkpointing_enable()
             model.config.use_cache = False
 
-        model = model.to(self.config.device)
+        #model = model.to(self.config.device)
 
         model, optimizer, _, _ = deepspeed.initialize(
                                     model=model,
