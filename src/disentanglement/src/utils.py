@@ -122,9 +122,9 @@ class TrainingData:
             f'TrainingData: {len(train_set)=} {len(val_set)=} {len(test_set)=}')
 
         self.train_loader = DataLoader(PandasDataset(train_set), collate_fn=lambda inp: collate_fn(
-            inp, max_source_input_len=256, **kwargs), batch_size=config.batch_size, shuffle=True, num_workers=4, pin_memory=True)
+            inp, max_source_input_len=256, **kwargs), batch_size=config.batch_size, shuffle=True, num_workers=1, pin_memory=True)
         self.val_loader = DataLoader(PandasDataset(val_set), collate_fn=lambda inp: collate_fn(
-            inp, max_source_input_len=256, **kwargs), batch_size=config.eval_batch_size, shuffle=True, num_workers=4, pin_memory=True)
+            inp, max_source_input_len=256, **kwargs), batch_size=config.eval_batch_size, shuffle=True, num_workers=1, pin_memory=True)
 
         self.test_loaders = {}
         for k in test_set:
@@ -135,7 +135,7 @@ class TrainingData:
                 continue
 
             self.test_loaders[k] = DataLoader(PandasDataset(test_set[k]), collate_fn=lambda inp: collate_fn(
-                inp, max_source_input_len=396, **kwargs), batch_size=config.eval_batch_size, shuffle=True, num_workers=4, pin_memory=True)
+                inp, max_source_input_len=396, **kwargs), batch_size=config.eval_batch_size, shuffle=True, num_workers=1, pin_memory=True)
 
     def to_readable_name(self, abbreviation: str):
         if abbreviation == 'f': 
@@ -319,7 +319,7 @@ def collate_fn(input: pd.DataFrame, max_source_input_len: int, tokenizer: T5Toke
     source_dict = tokenizer(que_ctx,  # Sentence to encode.
                             add_special_tokens=True,  # Add '[CLS]' and '[SEP]'
                             # Pad & truncate all sentences.
-                            max_length=max_source_input_len,
+                            model_max_length=max_source_input_len,
                             padding='max_length',
                             # Construct attn. masks.
                             return_attention_mask=True,
