@@ -23,6 +23,17 @@ ds_config = {
             "lr": 1e-5,  # Learning rate
         },
     },
+    "train_batch_size": 16,                  # Total batch size across all GPUs
+    "train_micro_batch_size_per_gpu": 4,    # Batch size per GPU
+    "gradient_accumulation_steps": 1,       # Accumulate gradients across multiple steps
+    "fp16": {
+        "enabled": True,                    # Enable mixed precision training
+        "loss_scale": 0,                    # Loss scaling for mixed precision training
+        "initial_scale_power": 16,          # Initial loss scaling for mixed precision training
+        "loss_scale_window": 1000,          # Window over which to raise/lower dynamic scale
+        "hysteresis": 2,                    # Minimum number of iterations to raise/lower scale
+        "min_loss_scale": 1                 # Minimum loss scale for mixed precision training
+    },
 }
 
 class FinetuningDeepSpeed:
