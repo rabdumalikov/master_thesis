@@ -57,7 +57,7 @@ class Finetuning:
         model_name = checkpoint if checkpoint else self.config.model_name
         
         model = T5ForConditionalGeneration.from_pretrained(
-            model_name, device_map='balanced')
+            model_name, device_map='auto', no_split_module_classes=["T5Block"])
 
         print(model.hf_device_map)
         num_param = count_parameters(model)
