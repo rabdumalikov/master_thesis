@@ -609,9 +609,9 @@ def train_step(training_elements: TrainingElements, config: TrainingConfig,
     return loss.item()
 
 def unroll_batch( batch, device: torch.device, pad_token_id ):
-    input_ids = batch[0].to(device)
-    attention_mast = batch[1].to(device)
-    target_ids = batch[2].to(device)
+    input_ids = batch[0]#.to(device)
+    attention_mast = batch[1]#.to(device)
+    target_ids = batch[2]#.to(device)
 
     labels = target_ids.clone().detach()
     labels[target_ids == pad_token_id] = -100

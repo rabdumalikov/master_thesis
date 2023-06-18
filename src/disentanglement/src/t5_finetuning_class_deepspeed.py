@@ -1,3 +1,4 @@
+import os
 import math
 import wandb
 import torch
@@ -6,6 +7,10 @@ import common_utils
 
 from utils import *
 from transformers import T5Tokenizer, T5ForConditionalGeneration
+
+os.environ['RANK'] = "0"
+os.environ['LOCAL_RANK'] = "0"
+os.environ['WORLD_SIZE'] = "1"
 
 # Step 3: Model parallelism configuration
 ds_config = {
@@ -18,12 +23,12 @@ ds_config = {
         # Add any other T5-specific configuration options
     },
     "optimizer": {
-        "type": "Adafactor",  # Use AdamW optimizer
+        "type": "AdamW",  # Use AdamW optimizer
         "params": {
             "lr": 1e-5,  # Learning rate
         },
     },
-    "train_batch_size": 16,                  # Total batch size across all GPUs
+    "train_batch_size": 4,                  # Total batch size across all GPUs
     "train_micro_batch_size_per_gpu": 4,    # Batch size per GPU
     "gradient_accumulation_steps": 1,       # Accumulate gradients across multiple steps
     "fp16": {
