@@ -4,8 +4,8 @@ import torch
 import common_utils
 
 from utils import *
-from transformers import T5Tokenizer, T5ForConditionalGeneration
-
+from accelerate import infer_auto_device_map, init_empty_weights
+from transformers import T5Tokenizer, T5ForConditionalGeneration, T5Config
 
 class Finetuning:
 
@@ -56,8 +56,22 @@ class Finetuning:
 
         model_name = checkpoint if checkpoint else self.config.model_name
         
+        config = T5Config.from_pretrained(model_name)
+        with init_empty_weights():
+            model = T5ForConditionalGeneration.from_config(config)
+
+        device_map = infer_auto_device_map(model, no_split_module_classes=["T5Block"], dtype="float16")
+
+
         model = T5ForConditionalGeneration.from_pretrained(
-            model_name, device_map='auto', no_split_module_classes=["T5Block"])
+            model_name, 
+            device_map=device_map,
+            offload_folder="offload",
+            offload_state_dict=True,
+            torch_dtype=torch.float16)
+            
+        #model = T5ForConditionalGeneration.from_pretrained(
+        #    model_name, device_map='auto')
 
         print(model.hf_device_map)
         num_param = count_parameters(model)
