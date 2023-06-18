@@ -34,6 +34,8 @@ ds_config = {
         "hysteresis": 2,                    # Minimum number of iterations to raise/lower scale
         "min_loss_scale": 1                 # Minimum loss scale for mixed precision training
     },
+    "rank": 0,                              # Global rank of this process (used for multi-machine training)
+    "world_size": 4,                        # Distributed training parameters
 }
 
 class FinetuningDeepSpeed:
