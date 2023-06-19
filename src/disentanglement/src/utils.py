@@ -65,7 +65,7 @@ class TrainingConfig:
         self.batch_size = batch_size
         self.gpu_stat_every = gpu_stat_every
         self.evaluation_every = evaluation_every
-        self.eval_batch_size = batch_size * 1
+        self.eval_batch_size = batch_size * 3
         self.device = device
         self.dataset_type = dataset_type
         self.epochs = epochs
@@ -287,7 +287,8 @@ def _get_data_path_for(dataset_type: str) -> Tuple[str, str, str]:
         'gpt_rnd_2': ('(s) f - train.csv.tar.gz', '(s) f - val.csv.tar.gz', 'GPT_relavent_answ_and_ctx.csv.tar.gz'),
         'gpt_rnd_2_cf_jb': ('(s) f - train.csv.tar.gz', '(s) f - val.csv.tar.gz', 'GPT_cf_jailbreak_irrelavent_answ_and_ctx.csv.tar.gz'), #GPT_cf_jailbreak_irrelavent_answ_and_ctx
         'gpt_rnd_2_f_jb': ('(s) f - train.csv.tar.gz', '(s) f - val.csv.tar.gz', 'GPT_f_jailbreak_irrelavent_answ_and_ctx.csv.tar.gz'),
-        'gpt_rnd_2_f_subs_jb': ('(s) f - train.csv.tar.gz', '(s) f - val.csv.tar.gz', 'GPT_f_SUBS_jailbreak_irrelavent_answ_and_ctx.csv.tar.gz') 
+        'gpt_rnd_2_f_subs_jb': ('(s) f - train.csv.tar.gz', '(s) f - val.csv.tar.gz', 'GPT_f_SUBS_jailbreak_irrelavent_answ_and_ctx.csv.tar.gz'),
+        'gpt_rnd_2_f_jb_wo_adv': ('(s) f - train.csv.tar.gz', '(s) f - val.csv.tar.gz', 'GPT_f_jailbreak_without_adversarial_part.csv.tar.gz') 
     }
 
     train, val, test = Experiments[dataset_type]
@@ -626,7 +627,7 @@ def deduce_device() -> torch.device:
     return device
 
 def get_dataset_name_choices() -> List[str]:
-    return ['s(f)', 's(f+a2)', 's(f+a3)', 's(f+a4)', 's(f+cf)', 's(f+a)', 's(f+cf+a)', 'gpt_rnd', 'gpt_rnd_2', 'gpt_rnd_2_cf_jb', 'gpt_rnd_2_f_jb', 'hmo', 'gpt_perm', 'cb', 'gpt_cf', 's(a2)', 'gpt_rnd_2_f_subs_jb']
+    return ['s(f)', 's(f+a2)', 's(f+a3)', 's(f+a4)', 's(f+cf)', 's(f+a)', 's(f+cf+a)', 'gpt_rnd', 'gpt_rnd_2', 'gpt_rnd_2_cf_jb', 'gpt_rnd_2_f_jb', 'hmo', 'gpt_perm', 'cb', 'gpt_cf', 's(a2)', 'gpt_rnd_2_f_subs_jb', 'gpt_rnd_2_f_jb_wo_adv']
 
 def get_model_name_choices() -> List[str]:
     return ['large', 'xl', 'xxl', 'small', 'base']

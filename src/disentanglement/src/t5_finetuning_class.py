@@ -40,7 +40,7 @@ class Finetuning:
             model.gradient_checkpointing_enable()
             model.config.use_cache = False
 
-        #model = model.to(self.config.device)
+        model = model.to(self.config.device)
 
         # TODO: optimizer changed. utils.py
         self.training_elems = TrainingElements(model, tokenizer, self.create_optimizer(model))
@@ -56,22 +56,22 @@ class Finetuning:
 
         model_name = checkpoint if checkpoint else self.config.model_name
         
-        config = T5Config.from_pretrained(model_name)
-        with init_empty_weights():
-            model = T5ForConditionalGeneration(config=config)
+        # config = T5Config.from_pretrained(model_name)
+        # with init_empty_weights():
+        #     model = T5ForConditionalGeneration(config=config)
 
-        device_map = infer_auto_device_map(model, max_memory={0: "25GiB", 1: "25GiB", 2: "25GiB", 3: "25GiB"},  no_split_module_classes=["T5Block"], dtype="float16")
+        # device_map = infer_auto_device_map(model, max_memory={0: "25GiB", 1: "25GiB", 2: "25GiB", 3: "25GiB"},  no_split_module_classes=["T5Block"], dtype="float16")
 
 
-        model = T5ForConditionalGeneration.from_pretrained(
-            model_name, 
-            device_map=device_map,
-            offload_folder="offload",
-            offload_state_dict=True,
-            torch_dtype=torch.float16)
+        # model = T5ForConditionalGeneration.from_pretrained(
+        #     model_name, 
+        #     device_map=device_map,
+        #     offload_folder="offload",
+        #     offload_state_dict=True,
+        #     torch_dtype=torch.float16)
             
-        #model = T5ForConditionalGeneration.from_pretrained(
-        #    model_name, device_map='auto')
+        model = T5ForConditionalGeneration.from_pretrained(
+           model_name, device_map='auto')
 
         print(model.hf_device_map)
         num_param = count_parameters(model)

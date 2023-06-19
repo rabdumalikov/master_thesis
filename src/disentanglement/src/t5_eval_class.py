@@ -71,7 +71,7 @@ def main():
                                 num_gpus=1, gradient_accumulation_steps=1,
                                 gpu_stat_every=500, 
                                 evaluation_every=1, 
-                                device=deduce_device(), 
+                                device=utils.deduce_device(), 
                                 epochs=100, 
                                 model_saving_folder='',
                                 tuning_method=args.tuning,
